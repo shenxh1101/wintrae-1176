@@ -1,26 +1,59 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, Image, ScrollView, Button, Textarea } from '@tarojs/components';
 import Taro, { useDidShow } from '@tarojs/taro';
 import styles from './index.module.scss';
 import { useAppStore } from '@/store';
-import { Message, MessageType } from '@/types';
+import { Message, CareDetailItem } from '@/types';
 import classnames from 'classnames';
 
-type FilterType = 'all' | MessageType;
+const CARE_ICONS: Record<CareDetailItem['type'], string> = {
+  feeding: '🍚',
+  watering: '💧',
+  walking: '🐾',
+  defecation: '💩',
+  grooming: '✂️',
+  medication: '💊',
+  photo: '📷'
+};
+
+const CARE_LABELS: Record<CareDetailItem['type'], string> = {
+  feeding: '喂食',
+  watering: '饮水',
+  walking: '遛放',
+  defecation: '排便',
+  grooming: '洗护',
+  medication: '用药',
+  photo: '照片'
+};
+
+const TYPE_ICONS: Record<Message['type'], string> = {
+  'care-summary': '📋',
+  'care-update': '📋',
+  'abnormal-alert': '⚠️',
+  'owner-receipt': '📮',
+  'rating': '⭐'
+};
+
+const formatTime = (iso: string) => {
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  } catch {
+    return iso;
+  }
+};
 
 const MessagesPage: React.FC = () => {
   const messages = useAppStore(s => s.messages);
+  const pets = useAppStore(s => s.pets);
   const updateMessage = useAppStore(s => s.updateMessage);
   const markMessageRead = useAppStore(s => s.markMessageRead);
-  const addMessage = useAppStore(s => s.addMessage);
+  const toggleSummaryExpand = useAppStore(s => s.toggleSummaryExpand);
   const initFromStorage = useAppStore(s => s.initFromStorage);
 
-  const [filter, setFilter] = useState<FilterType>('all');
   const [refreshing, setRefreshing] = useState(false);
-  const [showDetail, setShowDetail] = useState(false);
-  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
-  const [ratingValue, setRatingValue] = useState(0);
-  const [ratingComment, setRatingComment] = useState('');
+  const [ratingInputs, setRatingInputs] = useState<Record<string, { rating: number; comment: string }>({});
 
   useDidShow(() => {
     initFromStorage();
@@ -28,126 +61,321 @@ const MessagesPage: React.FC = () => {
 
   const unreadCount = messages.filter(m => !m.read).length;
 
-  const onRefresh = useCallback(() => {
+  const sortedMessages = useMemo(() => {
+    return [...messages].sort((a, b) => {
+      const timeA = new Date(a.time).getTime();
+      const timeB = new Date(b.time).getTime();
+      return timeB - timeA;
+    });
+  }, [messages]);
+
+  const getPetAvatar = (petId?: string) => {
+    if (!petId) return '';
+    const pet = pets.find(p => p.id === petId);
+    return pet?.avatar || '';
+  };
+
+  const buildSummaryText = (details?: CareDetailItem[]) => {
+    if (!details || details.length === 0) return '暂无照护记录';
+    const counts: Record<string, number> = {};
+    details.forEach(d => {
+      counts[d.type] = (counts[d.type] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([type, count]) => `${CARE_LABELS[type as CareDetailItem['type']]}${count}${type === 'defecation' ? '条' : '次'}`)
+      .join('、');
+  };
+
+  const onRefresh = () => {
     setRefreshing(true);
     setTimeout(() => {
       initFromStorage();
       setRefreshing(false);
       Taro.showToast({ title: '刷新成功', icon: 'success' });
     }, 800);
-  }, [initFromStorage]);
-
-  const filteredMessages = messages.filter(m => {
-    if (filter === 'all') return true;
-    return m.type === filter;
-  });
-
-  const getTypeIcon = (type: Message['type']) => {
-    switch (type) {
-      case 'care-update': return '📋';
-      case 'abnormal-alert': return '⚠️';
-      case 'owner-receipt': return '✅';
-      case 'rating': return '⭐';
-    }
-  };
-
-  const getTypeStyle = (type: Message['type']) => {
-    switch (type) {
-      case 'care-update': return styles.typeCare;
-      case 'abnormal-alert': return styles.typeAlert;
-      case 'owner-receipt': return styles.typeReceipt;
-      case 'rating': return styles.typeRating;
-    }
-  };
-
-  const getFilterLabel = (type: FilterType) => {
-    switch (type) {
-      case 'all': return '全部';
-      case 'care-update': return '照护动态';
-      case 'abnormal-alert': return '异常提醒';
-      case 'owner-receipt': return '主人回执';
-      case 'rating': return '服务评价';
-    }
-  };
-
-  const refreshSelected = (id: string) => {
-    const updated = messages.find(m => m.id === id);
-    if (updated) {
-      setSelectedMessage(updated);
-    }
   };
 
   const handleMessageClick = (message: Message) => {
     if (!message.read) {
       markMessageRead(message.id);
     }
-    const current = messages.find(m => m.id === message.id) || message;
-    setSelectedMessage(current);
-    setRatingValue(current.rating || 0);
-    setRatingComment(current.ratingComment || '');
-    setShowDetail(true);
   };
 
-  const handleConfirmReceipt = (messageId: string) => {
-    updateMessage(messageId, {
-      receiptConfirmed: true,
-      confirmed: true
-    });
-    const current = messages.find(m => m.id === messageId);
-    if (current && current.petId && current.petName) {
-      const receiptMsg: Message = {
-        id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        type: 'owner-receipt',
-        title: `${current.petName} 主人已确认`,
-        content: `✅ 主人已确认今日照护完成，感谢您的服务！`,
-        petId: current.petId,
-        petName: current.petName,
-        time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-        date: new Date().toISOString().split('T')[0],
-        read: false,
-        confirmed: true
-      };
-      addMessage(receiptMsg);
-    }
-    Taro.showToast({ title: '已确认照护完成', icon: 'success' });
-    setTimeout(() => {
-      refreshSelected(messageId);
-    }, 300);
-    setShowDetail(false);
+  const handleToggleExpand = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    toggleSummaryExpand(id);
   };
 
-  const handleSubmitRating = () => {
-    if (ratingValue === 0) {
+  const handleConfirmReceipt = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    updateMessage(id, { receiptConfirmed: true });
+    Taro.showToast({ title: '已确认', icon: 'success' });
+  };
+
+  const getRatingInput = (id: string) => {
+    return ratingInputs[id] || { rating: 0, comment: '' };
+  };
+
+  const handleRatingChange = (id: string, rating: number) => {
+    setRatingInputs(prev => ({
+      ...prev,
+      [id]: { ...(prev[id] || { rating: 0, comment: '' }), rating }
+    }));
+  };
+
+  const handleRatingCommentChange = (id: string, comment: string) => {
+    setRatingInputs(prev => ({
+      ...prev,
+      [id]: { ...(prev[id] || { rating: 0, comment: '' }), comment }
+    }));
+  };
+
+  const handleSubmitRating = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const input = getRatingInput(id);
+    if (input.rating === 0) {
       Taro.showToast({ title: '请选择评分', icon: 'none' });
       return;
     }
-    if (selectedMessage) {
-      updateMessage(selectedMessage.id, {
-        rating: ratingValue,
-        ratingComment
-      });
-      Taro.showToast({ title: '评价提交成功', icon: 'success' });
-      setTimeout(() => {
-        refreshSelected(selectedMessage.id);
-      }, 300);
-    }
-    setShowDetail(false);
+    updateMessage(id, {
+      rating: input.rating,
+      ratingComment: input.comment
+    });
+    setRatingInputs(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    Taro.showToast({ title: '评价提交成功', icon: 'success' });
   };
 
-  const renderStars = (count: number, size: 'small' | 'large' = 'small', interactive = false) => {
+  const renderStars = (count: number, interactive = false, messageId?: string) => {
+    const displayCount = interactive ? getRatingInput(messageId!).rating : count;
     return Array.from({ length: 5 }, (_, i) => (
       <Text
         key={i}
         className={classnames(
-          size === 'small' ? styles.star : styles.starLarge,
-          i < count && (size === 'small' ? styles.starActive : styles.starLargeActive),
-          interactive && size === 'large' && styles.starInteractive
+          styles.star,
+          i < displayCount && styles.starActive,
+          interactive && styles.starInteractive
         )}
-        onClick={interactive ? () => setRatingValue(i + 1) : undefined}
+        onClick={interactive ? (e) => {
+          e.stopPropagation();
+          handleRatingChange(messageId!, i + 1);
+        } : undefined}
       >
         ★
       </Text>
     ));
+  };
+
+  const renderCareDetails = (details?: CareDetailItem[]) => {
+    if (!details || details.length === 0) return null;
+    const sortedDetails = [...details].sort((a, b) => {
+      const timeA = new Date(a.time).getTime();
+      const timeB = new Date(b.time).getTime();
+      return timeB - timeA;
+    });
+    return (
+      <View className={styles.careDetails}>
+        {sortedDetails.map((item, index) => (
+          <View key={index} className={styles.careDetailItem}>
+            <Text className={styles.careDetailTime}>{formatTime(item.time)}</Text>
+            <Text className={styles.careDetailIcon}>{CARE_ICONS[item.type]}</Text>
+            <Text className={styles.careDetailDesc}>{item.desc}</Text>
+            {item.type === 'photo' && item.photoUrl && (
+              <Image
+                className={styles.careDetailPhoto}
+                src={item.photoUrl}
+                mode="aspectFill"
+              />
+            )}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  const renderCareSummary = (message: Message) => {
+    const avatar = getPetAvatar(message.petId);
+    const summaryText = message.content || buildSummaryText(message.careDetails);
+    return (
+      <View
+        key={message.id}
+        className={classnames(styles.messageCard, styles.careSummaryCard)}
+        onClick={() => handleMessageClick(message)}
+      >
+        {!message.read && <View className={styles.unreadDot} />}
+        <View className={styles.summaryHeader}>
+          <View className={styles.summaryLeft}>
+            {avatar ? (
+              <Image
+                className={styles.petAvatar}
+                src={avatar}
+                mode="aspectFill"
+              />
+            ) : (
+              <View className={classnames(styles.typeIcon, styles.typeCare)}>
+              <Text>{TYPE_ICONS[message.type]}</Text>
+            </View>
+            )}
+            <View className={styles.summaryInfo}>
+              <Text className={styles.petName}>{message.petName || '宠物'}</Text>
+              <Text className={styles.summaryDate}>{message.date || formatTime(message.time)}</Text>
+            </View>
+          </View>
+          <Button
+            className={classnames(styles.expandBtn, message.expanded && styles.expandBtnActive)}
+            onClick={(e) => handleToggleExpand(e, message.id)}
+          >
+            <Text className={styles.expandIcon}>{message.expanded ? '▲' : '▼'}</Text>
+          </Button>
+        </View>
+        <View className={styles.summaryContent}>
+          <Text className={styles.summaryText}>{summaryText}</Text>
+        </View>
+        {message.expanded && renderCareDetails(message.careDetails)}
+      </View>
+    );
+  };
+
+  const renderAbnormalAlert = (message: Message) => {
+    return (
+      <View
+        key={message.id}
+        className={classnames(styles.messageCard, styles.alertCard)}
+        onClick={() => handleMessageClick(message)}
+      >
+        {!message.read && <View className={styles.unreadDot} />}
+        <View className={styles.messageHeader}>
+          <View className={classnames(styles.typeIcon, styles.typeAlert)}>
+            <Text>{TYPE_ICONS[message.type]}</Text>
+          </View>
+          <View className={styles.messageInfo}>
+            <Text className={styles.messageTitle}>{message.title}</Text>
+            <Text className={styles.messageTime}>{formatTime(message.time)}</Text>
+          </View>
+        </View>
+        <Text className={styles.messageContent}>{message.content}</Text>
+      </View>
+    );
+  };
+
+  const renderOwnerReceipt = (message: Message) => {
+    return (
+      <View
+        key={message.id}
+        className={classnames(styles.messageCard, styles.receiptCard)}
+        onClick={() => handleMessageClick(message)}
+      >
+        {!message.read && <View className={styles.unreadDot} />}
+        <View className={styles.messageHeader}>
+          <View className={classnames(styles.typeIcon, styles.typeReceipt)}>
+            <Text>{TYPE_ICONS[message.type]}</Text>
+          </View>
+          <View className={styles.messageInfo}>
+            <Text className={styles.messageTitle}>{message.title}</Text>
+            <Text className={styles.messageTime}>{formatTime(message.time)}</Text>
+          </View>
+        </View>
+        <Text className={styles.messageContent}>{message.content}</Text>
+        <View className={styles.messageActions}>
+          {message.receiptConfirmed ? (
+            <Text className={classnames(styles.statusTag, styles.statusConfirmed)}>
+              已确认
+            </Text>
+          ) : (
+            <Button
+              className={classnames(styles.actionButton, styles.primaryBtn)}
+              onClick={(e) => handleConfirmReceipt(e, message.id)}
+            >
+              确认回执
+            </Button>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderRating = (message: Message) => {
+    const hasRated = message.rating && message.rating > 0;
+    const input = getRatingInput(message.id);
+    return (
+      <View
+        key={message.id}
+        className={classnames(styles.messageCard, styles.ratingCard)}
+        onClick={() => handleMessageClick(message)}
+      >
+        {!message.read && <View className={styles.unreadDot} />}
+        <View className={styles.messageHeader}>
+          <View className={classnames(styles.typeIcon, styles.typeRating)}>
+            <Text>{TYPE_ICONS[message.type]}</Text>
+          </View>
+          <View className={styles.messageInfo}>
+            <Text className={styles.messageTitle}>{message.title}</Text>
+            <Text className={styles.messageTime}>{formatTime(message.time)}</Text>
+          </View>
+        </View>
+        <Text className={styles.messageContent}>{message.content}</Text>
+
+        {hasRated ? (
+          <View className={styles.ratingResult}>
+            <View className={styles.ratingStars}>
+              {renderStars(message.rating!)}
+              <Text className={styles.ratingScore}>{message.rating}.0</Text>
+            </View>
+            {message.ratingComment && (
+              <Text className={styles.ratingCommentDisplay}>「{message.ratingComment}」</Text>
+            )}
+            <Text className={classnames(styles.statusTag, styles.statusConfirmed)}>
+              已评价
+            </Text>
+          </View>
+        ) : (
+          <View className={styles.ratingForm} onClick={(e) => e.stopPropagation()}>
+          <View className={styles.ratingStarsInteractive}>
+            {renderStars(0, true, message.id)}
+          </View>
+          <Text className={styles.ratingHint}>
+            {input.rating === 1 && '很不满意'}
+            {input.rating === 2 && '不满意'}
+            {input.rating === 3 && '一般'}
+            {input.rating === 4 && '满意'}
+            {input.rating === 5 && '非常满意'}
+            {input.rating === 0 && '点击星星进行评分'}
+          </Text>
+          <Textarea
+            className={styles.ratingTextarea}
+            placeholder="请输入您的评价（选填）..."
+            value={input.comment}
+            onInput={(e) => handleRatingCommentChange(message.id, e.detail.value)}
+          />
+          <Button
+            className={classnames(styles.actionButton, styles.primaryBtn, styles.submitRatingBtn)}
+            onClick={(e) => handleSubmitRating(e, message.id)}
+          >
+            提交评价
+          </Button>
+        </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderMessage = (message: Message) => {
+    switch (message.type) {
+      case 'care-summary':
+      case 'care-update':
+        return renderCareSummary(message);
+      case 'abnormal-alert':
+        return renderAbnormalAlert(message);
+      case 'owner-receipt':
+        return renderOwnerReceipt(message);
+      case 'rating':
+        return renderRating(message);
+      default:
+        return null;
+    }
   };
 
   return (
@@ -165,185 +393,11 @@ const MessagesPage: React.FC = () => {
         )}
       </View>
 
-      <View className={styles.filterTabs}>
-        {(['all', 'care-update', 'abnormal-alert', 'owner-receipt', 'rating'] as FilterType[]).map(type => (
-          <Button
-            key={type}
-            className={classnames(styles.filterTab, filter === type && styles.filterTabActive)}
-            onClick={() => setFilter(type)}
-          >
-            {getFilterLabel(type)}
-          </Button>
-        ))}
-      </View>
-
-      {filteredMessages.length === 0 ? (
+      {sortedMessages.length === 0 ? (
         <View className={styles.emptyTip}>暂无消息</View>
       ) : (
         <View className={styles.messageList}>
-          {filteredMessages.map(message => (
-            <View
-              key={message.id}
-              className={styles.messageCard}
-              onClick={() => handleMessageClick(message)}
-            >
-              {!message.read && <View className={styles.unreadDot} />}
-
-              <View className={styles.messageHeader}>
-                <View className={classnames(styles.typeIcon, getTypeStyle(message.type))}>
-                  <Text>{getTypeIcon(message.type)}</Text>
-                </View>
-                <View className={styles.messageInfo}>
-                  <Text className={styles.messageTitle}>{message.title}</Text>
-                  <Text className={styles.messageTime}>{message.time}</Text>
-                </View>
-              </View>
-
-              <Text className={styles.messageContent}>{message.content}</Text>
-
-              {message.type === 'rating' && message.rating && (
-                <>
-                  <View className={styles.ratingStars}>
-                    {renderStars(message.rating)}
-                  </View>
-                  {message.ratingComment && (
-                    <Text className={styles.ratingComment}>「{message.ratingComment}」</Text>
-                  )}
-                </>
-              )}
-
-              {message.type === 'care-update' && (
-                <View className={styles.messageActions}>
-                  <Text className={classnames(styles.statusTag, message.receiptConfirmed ? styles.statusConfirmed : styles.statusUnconfirmed)}>
-                    {message.receiptConfirmed ? '主人已确认' : '待主人确认'}
-                  </Text>
-                </View>
-              )}
-
-              {((message.type === 'care-update' && !message.receiptConfirmed) || (message.type === 'rating' && !message.rating)) && (
-                <View className={styles.messageActions}>
-                  {message.type === 'care-update' && !message.receiptConfirmed && (
-                    <Button
-                      className={classnames(styles.actionButton, styles.primaryBtn)}
-                      onClick={(e) => { e.stopPropagation(); handleConfirmReceipt(message.id); }}
-                    >
-                      确认照护完成
-                    </Button>
-                  )}
-                  {message.type === 'rating' && !message.rating && (
-                    <Button
-                      className={classnames(styles.actionButton, styles.secondaryBtn)}
-                      onClick={(e) => { e.stopPropagation(); handleMessageClick(message); }}
-                    >
-                      去评价
-                    </Button>
-                  )}
-                </View>
-              )}
-            </View>
-          ))}
-        </View>
-      )}
-
-      {showDetail && selectedMessage && (
-        <View className={styles.detailModal} onClick={() => setShowDetail(false)}>
-          <View className={styles.detailContent} onClick={(e) => e.stopPropagation()}>
-            <View className={styles.detailHeader}>
-              <Text className={styles.detailTitle}>消息详情</Text>
-              <Button className={styles.closeBtn} onClick={() => setShowDetail(false)}>
-                ×
-              </Button>
-            </View>
-
-            <View className={styles.detailInfo}>
-              <View className={styles.detailRow}>
-                <Text className={styles.detailLabel}>消息类型</Text>
-                <Text className={styles.detailValue}>{getFilterLabel(selectedMessage.type)}</Text>
-              </View>
-              {selectedMessage.petName && (
-                <View className={styles.detailRow}>
-                  <Text className={styles.detailLabel}>关联宠物</Text>
-                  <Text className={styles.detailValue}>{selectedMessage.petName}</Text>
-                </View>
-              )}
-              <View className={styles.detailRow}>
-                <Text className={styles.detailLabel}>发送时间</Text>
-                <Text className={styles.detailValue}>{selectedMessage.time}</Text>
-              </View>
-              {selectedMessage.type === 'care-update' && (
-                <View className={styles.detailRow}>
-                  <Text className={styles.detailLabel}>确认状态</Text>
-                  <Text className={classnames(styles.detailValue, selectedMessage.receiptConfirmed ? styles.textGreen : styles.textOrange)}>
-                    {selectedMessage.receiptConfirmed ? '✓ 已确认' : '待确认'}
-                  </Text>
-                </View>
-              )}
-              {selectedMessage.type === 'rating' && selectedMessage.rating && (
-                <View className={styles.detailRow}>
-                  <Text className={styles.detailLabel}>服务评分</Text>
-                  <View style={{ flex: 1 }}>
-                    {renderStars(selectedMessage.rating)}
-                  </View>
-                </View>
-              )}
-            </View>
-
-            <View className={styles.detailBody}>
-              <Text className={styles.detailBodyText}>{selectedMessage.content}</Text>
-            </View>
-
-            {selectedMessage.type === 'rating' && !selectedMessage.rating && (
-              <View className={styles.ratingSection}>
-                <Text className={styles.ratingSectionTitle}>服务评分</Text>
-                <View className={styles.ratingStarsLarge}>
-                  {renderStars(ratingValue, 'large', true)}
-                </View>
-                <Text className={styles.ratingHint}>
-                  {ratingValue === 1 && '很不满意'}
-                  {ratingValue === 2 && '不满意'}
-                  {ratingValue === 3 && '一般'}
-                  {ratingValue === 4 && '满意'}
-                  {ratingValue === 5 && '非常满意'}
-                </Text>
-                <Textarea
-                  className={styles.ratingTextarea}
-                  placeholder="请输入您的评价（选填）..."
-                  value={ratingComment}
-                  onInput={(e) => setRatingComment(e.detail.value)}
-                />
-              </View>
-            )}
-
-            <View className={styles.detailActions}>
-              {selectedMessage.type === 'care-update' && !selectedMessage.receiptConfirmed && (
-                <Button
-                  className={classnames(styles.actionFullBtn, styles.primaryBtn)}
-                  onClick={() => handleConfirmReceipt(selectedMessage.id)}
-                >
-                  确认照护完成
-                </Button>
-              )}
-              {selectedMessage.type === 'rating' && !selectedMessage.rating && (
-                <Button
-                  className={classnames(styles.actionFullBtn, styles.primaryBtn)}
-                  onClick={handleSubmitRating}
-                >
-                  提交评价
-                </Button>
-              )}
-              {((selectedMessage.type === 'care-update' && selectedMessage.receiptConfirmed) ||
-                (selectedMessage.type === 'rating' && selectedMessage.rating) ||
-                selectedMessage.type === 'abnormal-alert' ||
-                selectedMessage.type === 'owner-receipt') && (
-                <Button
-                  className={classnames(styles.actionFullBtn, styles.ghostBtn)}
-                  onClick={() => setShowDetail(false)}
-                >
-                  关闭
-                </Button>
-              )}
-            </View>
-          </View>
+          {sortedMessages.map(message => renderMessage(message))}
         </View>
       )}
     </ScrollView>

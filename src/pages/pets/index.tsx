@@ -18,13 +18,18 @@ const Genders = [
 
 const Vaccines = ['狂犬疫苗', '三联疫苗', '四联疫苗', '六联疫苗', '八联疫苗', '猫三联', '猫瘟'];
 
+type FilterTab = 'all' | 'checked-in' | 'checked-out';
+
 const PetsPage: React.FC = () => {
   const pets = useAppStore(s => s.pets);
+  const messages = useAppStore(s => s.messages);
   const addPet = useAppStore(s => s.addPet);
+  const checkoutPet = useAppStore(s => s.checkoutPet);
   const initFromStorage = useAppStore(s => s.initFromStorage);
 
   const [refreshing, setRefreshing] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [filterTab, setFilterTab] = useState<FilterTab>('all');
 
   const [form, setForm] = useState({
     name: '',
@@ -45,7 +50,17 @@ const PetsPage: React.FC = () => {
   });
   const [vaccines, setVaccines] = useState<VaccineInfo[]>([]);
 
+  const filteredPets = pets.filter(p => {
+    if (filterTab === 'all') return true;
+    return p.status === filterTab;
+  });
   const checkedInCount = pets.filter(p => p.status === 'checked-in').length;
+  const checkedOutCount = pets.filter(p => p.status === 'checked-out').length;
+
+  const getPetRating = (pet: Pet) => {
+    if (!pet.ratingId) return null;
+    return messages.find(m => m.id === pet.ratingId && m.type === 'rating');
+  };
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -59,6 +74,22 @@ const PetsPage: React.FC = () => {
   const goToDetail = (pet: Pet) => {
     Taro.navigateTo({
       url: `/pages/pet-detail/index?id=${pet.id}`
+    });
+  };
+
+  const handleCheckout = (e: React.MouseEvent, pet: Pet) => {
+    e.stopPropagation();
+    Taro.showModal({
+      title: '确认离店',
+      content: `确定要为 ${pet.name} 办理离店吗？办理后将生成寄养回执和评价邀请。`,
+      confirmText: '确认离店',
+      confirmColor: '#FF7A45',
+      success: (res) => {
+        if (res.confirm) {
+          checkoutPet(pet.id);
+          Taro.showToast({ title: '已办理离店', icon: 'success' });
+        }
+      }
     });
   };
 
@@ -162,6 +193,14 @@ const PetsPage: React.FC = () => {
     Taro.showToast({ title: '登记成功', icon: 'success' });
   };
 
+  const renderRatingStars = (rating: number) => {
+    return Array.from({ length: 5 }, (_, i) => (
+      <Text key={i} className={classnames(styles.starSmall, i < rating ? styles.starActive : '')}>
+        ★
+      </Text>
+    ));
+  };
+
   return (
     <ScrollView
       className={styles.container}
@@ -187,78 +226,159 @@ const PetsPage: React.FC = () => {
           <Text className={styles.statsLabel}>已入住</Text>
         </View>
         <View className={styles.statsCard}>
-          <Text className={styles.statsNumber}>{pets.length - checkedInCount}</Text>
+          <Text className={styles.statsNumber}>{checkedOutCount}</Text>
           <Text className={styles.statsLabel}>已离店</Text>
         </View>
       </View>
 
+      <View className={styles.filterTabs}>
+        <View
+          className={classnames(styles.filterTab, filterTab === 'all' ? styles.filterTabActive : '')}
+          onClick={() => setFilterTab('all')}
+        >
+          <Text className={styles.filterTabText}>全部</Text>
+        </View>
+        <View
+          className={classnames(styles.filterTab, filterTab === 'checked-in' ? styles.filterTabActive : '')}
+          onClick={() => setFilterTab('checked-in')}
+        >
+          <Text className={styles.filterTabText}>已入住</Text>
+          {checkedInCount > 0 && <View className={styles.filterBadge}>{checkedInCount}</View>}
+        </View>
+        <View
+          className={classnames(styles.filterTab, filterTab === 'checked-out' ? styles.filterTabActive : '')}
+          onClick={() => setFilterTab('checked-out')}
+        >
+          <Text className={styles.filterTabText}>已离店</Text>
+          {checkedOutCount > 0 && <View className={styles.filterBadge}>{checkedOutCount}</View>}
+        </View>
+      </View>
+
       <View className={styles.petList}>
-        {pets.map(pet => (
-          <View
-            key={pet.id}
-            className={styles.petCard}
-            onClick={() => goToDetail(pet)}
-          >
-            <View className={styles.petHeader}>
-              <Image
-                className={styles.petAvatar}
-                src={pet.avatar}
-                mode="aspectFill"
-              />
-              <View className={styles.petInfo}>
-                <View className={styles.petNameRow}>
-                  <Text className={styles.petName}>{pet.name}</Text>
-                  <Text className={classnames(styles.petTag, pet.type === 'dog' ? styles.tagDog : styles.tagCat)}>
-                    {pet.type === 'dog' ? '🐕 狗狗' : '🐱 猫咪'}
-                  </Text>
-                  <Text className={classnames(styles.petTag, styles.tagCheckedIn)}>
-                    {pet.status === 'checked-in' ? '已入住' : '已离店'}
-                  </Text>
-                </View>
-                <Text className={styles.petMeta}>
-                  {pet.breed} · {pet.gender === 'male' ? '♂' : '♀'} {pet.age} · {pet.weight}
-                </Text>
-              </View>
-            </View>
-
-            <View className={styles.petDetailRow}>
-              <View className={styles.detailItem}>
-                <Text className={styles.detailLabel}>房间号</Text>
-                <Text className={styles.detailValue}>{pet.roomNumber}</Text>
-              </View>
-              <View className={styles.detailItem}>
-                <Text className={styles.detailLabel}>入住日期</Text>
-                <Text className={styles.detailValue}>{pet.checkInDate}</Text>
-              </View>
-              <View className={styles.detailItem}>
-                <Text className={styles.detailLabel}>预计离店</Text>
-                <Text className={styles.detailValue}>{pet.checkOutDate}</Text>
-              </View>
-            </View>
-
-            <View className={styles.petDetailRow}>
-              <View className={styles.detailItem}>
-                <Text className={styles.detailLabel}>主人姓名</Text>
-                <Text className={styles.detailValue}>{pet.ownerName}</Text>
-              </View>
-              <View className={styles.detailItem}>
-                <Text className={styles.detailLabel}>联系电话</Text>
-                <Text className={styles.detailValue}>{pet.ownerPhone}</Text>
-              </View>
-              <View className={styles.detailItem}>
-                <Text className={styles.detailLabel}>疫苗记录</Text>
-                <Text className={styles.detailValue}>{pet.vaccineInfo.length} 条</Text>
-              </View>
-            </View>
-
-            {pet.notes && (
-              <View className={styles.petNotes}>
-                <Text className={styles.notesLabel}>📝 照护备注</Text>
-                <Text className={styles.notesContent}>{pet.notes}</Text>
-              </View>
-            )}
+        {filteredPets.length === 0 ? (
+          <View className={styles.emptyList}>
+            <Text className={styles.emptyListText}>暂无宠物档案</Text>
           </View>
-        ))}
+        ) : (
+          filteredPets.map(pet => {
+            const ratingMsg = getPetRating(pet);
+            const hasRating = ratingMsg && ratingMsg.rating && ratingMsg.rating > 0;
+            return (
+              <View
+                key={pet.id}
+                className={classnames(styles.petCard, pet.status === 'checked-out' ? styles.petCardCheckedOut : '')}
+                onClick={() => goToDetail(pet)}
+              >
+                <View className={styles.petHeader}>
+                  <Image
+                    className={styles.petAvatar}
+                    src={pet.avatar}
+                    mode="aspectFill"
+                  />
+                  <View className={styles.petInfo}>
+                    <View className={styles.petNameRow}>
+                      <Text className={styles.petName}>{pet.name}</Text>
+                      <Text className={classnames(styles.petTag, pet.type === 'dog' ? styles.tagDog : styles.tagCat)}>
+                        {pet.type === 'dog' ? '🐕 狗狗' : '🐱 猫咪'}
+                      </Text>
+                      <Text className={classnames(
+                        styles.petTag,
+                        pet.status === 'checked-in' ? styles.tagCheckedIn : styles.tagCheckedOut
+                      )}>
+                        {pet.status === 'checked-in' ? '已入住' : '已离店'}
+                      </Text>
+                    </View>
+                    <Text className={styles.petMeta}>
+                      {pet.breed} · {pet.gender === 'male' ? '♂' : '♀'} {pet.age} · {pet.weight}
+                    </Text>
+                  </View>
+                </View>
+
+                <View className={styles.petDetailRow}>
+                  <View className={styles.detailItem}>
+                    <Text className={styles.detailLabel}>房间号</Text>
+                    <Text className={styles.detailValue}>{pet.roomNumber}</Text>
+                  </View>
+                  <View className={styles.detailItem}>
+                    <Text className={styles.detailLabel}>入住</Text>
+                    <Text className={styles.detailValue}>{pet.checkInDate}</Text>
+                  </View>
+                  <View className={styles.detailItem}>
+                    <Text className={styles.detailLabel}>{pet.status === 'checked-out' ? '实际离店' : '预计离店'}</Text>
+                    <Text className={styles.detailValue}>
+                      {pet.status === 'checked-out' ? pet.actualCheckOutDate || pet.checkOutDate : pet.checkOutDate}
+                    </Text>
+                  </View>
+                </View>
+
+                <View className={styles.petDetailRow}>
+                  <View className={styles.detailItem}>
+                    <Text className={styles.detailLabel}>主人</Text>
+                    <Text className={styles.detailValue}>{pet.ownerName}</Text>
+                  </View>
+                  <View className={styles.detailItem}>
+                    <Text className={styles.detailLabel}>电话</Text>
+                    <Text className={styles.detailValue}>{pet.ownerPhone}</Text>
+                  </View>
+                  <View className={styles.detailItem}>
+                    <Text className={styles.detailLabel}>疫苗</Text>
+                    <Text className={styles.detailValue}>{pet.vaccineInfo.length} 条</Text>
+                  </View>
+                </View>
+
+                {pet.notes && (
+                  <View className={styles.petNotes}>
+                    <Text className={styles.notesLabel}>📝 照护备注</Text>
+                    <Text className={styles.notesContent}>{pet.notes}</Text>
+                  </View>
+                )}
+
+                {hasRating && (
+                  <View className={styles.ratingBox}>
+                    <Text className={styles.ratingBoxLabel}>⭐ 本次评价</Text>
+                    <View className={styles.ratingBoxContent}>
+                      <View className={styles.ratingBoxStars}>
+                        {renderRatingStars(ratingMsg!.rating!)}
+                        <Text className={styles.ratingBoxScore}>{ratingMsg!.rating}.0</Text>
+                      </View>
+                      {ratingMsg!.ratingComment && (
+                        <Text className={styles.ratingBoxComment}>"{ratingMsg!.ratingComment}"</Text>
+                      )}
+                    </View>
+                  </View>
+                )}
+
+                <View className={styles.petCardFooter}>
+                  {pet.status === 'checked-in' ? (
+                    <>
+                      <Button
+                        className={styles.btnSecondary}
+                        onClick={(e) => { e.stopPropagation(); goToDetail(pet); }}
+                      >
+                        查看详情
+                      </Button>
+                      <Button
+                        className={styles.btnDanger}
+                        onClick={(e) => handleCheckout(e, pet)}
+                      >
+                        办理离店
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        className={styles.btnSecondary}
+                        onClick={(e) => { e.stopPropagation(); goToDetail(pet); }}
+                      >
+                        查看历史档案
+                      </Button>
+                    </>
+                  )}
+                </View>
+              </View>
+            );
+          })
+        )}
       </View>
 
       {showForm && (

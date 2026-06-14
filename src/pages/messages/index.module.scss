@@ -413,3 +413,565 @@
     transform: scale(0.98);
   }
 }
+
+.careSummaryCard {
+  border-left: 8rpx solid $color-primary;
+}
+
+.summaryHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16rpx;
+}
+
+.summaryLeft {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  flex: 1;
+  min-width: 0;
+}
+
+.petAvatar {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: $radius-round;
+  background: $color-bg-hover;
+  flex-shrink: 0;
+  border: 2rpx solid $color-border;
+}
+
+.summaryInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.petName {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  @include text-ellipsis;
+}
+
+.summaryDate {
+  display: block;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  margin-top: 4rpx;
+}
+
+.expandBtn {
+  @include button-reset;
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: $radius-round;
+  background: $color-bg-page;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all $transition-base;
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.expandBtnActive {
+  background: linear-gradient(135deg, $color-primary 0%, $color-primary-light 100%);
+}
+
+.expandIcon {
+  font-size: 24rpx;
+  color: $color-text-secondary;
+  transition: all $transition-base;
+}
+
+.expandBtnActive .expandIcon {
+  color: $color-text-white;
+}
+
+.summaryContent {
+  padding: 16rpx 20rpx;
+  background: $color-bg-page;
+  border-radius: $radius-md;
+  margin-bottom: 16rpx;
+}
+
+.summaryText {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  line-height: 1.6;
+}
+
+.careDetails {
+  margin-top: 8rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid $color-divider;
+}
+
+.careDetailItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
+  padding: 14rpx 0;
+  border-bottom: 1rpx solid $color-divider;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.careDetailTime {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  width: 80rpx;
+  flex-shrink: 0;
+  padding-top: 4rpx;
+}
+
+.careDetailIcon {
+  font-size: 28rpx;
+  flex-shrink: 0;
+  width: 40rpx;
+  text-align: center;
+}
+
+.careDetailDesc {
+  flex: 1;
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  line-height: 1.6;
+  min-width: 0;
+}
+
+.careDetailPhoto {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: $radius-md;
+  margin-top: 8rpx;
+  flex-shrink: 0;
+  background: $color-bg-hover;
+}
+
+.alertCard {
+  border-left: 8rpx solid $color-error;
+}
+
+.receiptCard {
+  border-left: 8rpx solid $color-tag-blue-bg;
+}
+
+.ratingCard {
+  border-left: 8rpx solid #FFB800;
+}
+
+.ratingResult {
+  margin-left: 80rpx;
+}
+
+.ratingScore {
+  font-size: $font-size-sm;
+  font-weight: $font-weight-semibold;
+  color: #FFB800;
+  margin-left: 8rpx;
+}
+
+.ratingCommentDisplay {
+  display: block;
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  line-height: 1.6;
+  margin: 12rpx 0;
+  padding: 16rpx 20rpx;
+  background: $color-bg-page;
+  border-radius: $radius-md;
+}
+
+.ratingForm {
+  margin-left: 80rpx;
+}
+
+.ratingStarsInteractive {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  margin-bottom: 12rpx;
+}
+
+.starInteractive {
+  font-size: 48rpx;
+  cursor: pointer;
+  transition: all $transition-base;
+  padding: 4rpx;
+
+  &:active {
+    transform: scale(1.2);
+  }
+}
+
+.ratingHint {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  margin-bottom: 16rpx;
+}
+
+.ratingTextarea {
+  width: 100%;
+  min-height: 160rpx;
+  padding: 20rpx;
+  background: $color-bg-page;
+  border-radius: $radius-md;
+  font-size: $font-size-sm;
+  color: $color-text-primary;
+  line-height: 1.6;
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  margin-bottom: 16rpx;
+}
+
+.submitRatingBtn {
+  width: 100%;
+  height: $button-height-md;
+}
+
+.typeCare {
+  background: $color-tag-green-bg;
+}
+
+.header {
+  position: relative;
+}
+
+.unreadBadge {
+  position: absolute;
+  top: 24rpx;
+  right: 32rpx;
+  min-width: 36rpx;
+  height: 36rpx;
+  padding: 0 10rpx;
+  background: $color-error;
+  color: $color-text-white;
+  font-size: $font-size-xs;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999rpx;
+  margin-left: auto;
+}
+
+.messageList {
+  display: block;
+}
+
+.messageCard {
+  position: relative;
+}
+
+.unreadDot {
+  position: absolute;
+  top: 24rpx;
+  right: 24rpx;
+  width: 16rpx;
+  height: 16rpx;
+  background: $color-error;
+  border-radius: 50%;
+}
+
+.careSummaryCard {
+  border-left: 8rpx solid $color-primary;
+}
+
+.alertCard {
+  border-left: 8rpx solid $color-error;
+}
+
+.receiptCard {
+  border-left: 8rpx solid $color-info;
+}
+
+.ratingCard {
+  border-left: 8rpx solid #FFB800;
+}
+
+.summaryHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.summaryLeft {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  flex: 1;
+  min-width: 0;
+}
+
+.petAvatar {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: $radius-round;
+}
+
+.typeIcon {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: $radius-round;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32rpx;
+  flex-shrink: 0;
+}
+
+.typeCare {
+  background: $color-bg-tag-orange-bg;
+  color: $color-primary;
+}
+
+.typeAlert {
+  background: #FFE8E8;
+  color: $color-error;
+}
+
+.typeReceipt {
+  background: #E8F3FF;
+  color: $color-info;
+}
+
+.typeRating {
+  background: #FFF8E0;
+  color: #FFB800;
+}
+
+.summaryInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.petName {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  @include text-ellipsis;
+}
+
+.summaryDate {
+  font-size: 22rpx;
+  color: $color-text-tertiary;
+  margin-top: 4rpx;
+}
+
+.expandBtn {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+  background: $color-bg-hover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  padding: 0;
+}
+
+.expandBtnActive {
+  background: $color-bg-tag-orange-bg;
+}
+
+.expandIcon {
+  font-size: 20rpx;
+  color: $color-text-secondary;
+}
+
+.summaryContent {
+  margin-top: 16rpx;
+  padding: 16rpx 20rpx;
+  background: $color-bg-page;
+  border-radius: $radius-md;
+}
+
+.summaryText {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  line-height: 1.5;
+}
+
+.careDetails {
+  margin-top: 20rpx;
+  border-top: 1rpx solid $color-divider;
+  padding-top: 20rpx;
+}
+
+.careDetailItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
+  padding: 12rpx 0;
+}
+
+.careDetailTime {
+  width: 80rpx;
+  font-size: 22rpx;
+  color: $color-text-tertiary;
+  flex-shrink: 0;
+}
+
+.careDetailIcon {
+  font-size: 28rpx;
+  width: 40rpx;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.careDetailDesc {
+  flex: 1;
+  font-size: 22rpx;
+  color: $color-text-secondary;
+  line-height: 1.5;
+}
+
+.careDetailPhoto {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: $radius-sm;
+  margin-top: 8rpx;
+  margin-left: 132rpx;
+}
+
+.messageHeader {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.messageInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.messageTitle {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  @include text-ellipsis;
+}
+
+.messageTime {
+  font-size: 22rpx;
+  color: $color-text-tertiary;
+  margin-top: 4rpx;
+}
+
+.messageContent {
+  margin-top: 16rpx;
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  line-height: 1.6;
+}
+
+.messageActions {
+  margin-top: 20rpx;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.statusTag {
+  padding: 8rpx 20rpx;
+  border-radius: $radius-round;
+  font-size: 22rpx;
+  font-weight: $font-weight-medium;
+}
+
+.statusConfirmed {
+  background: $color-tag-green-bg;
+  color: $color-tag-green-text;
+}
+
+.actionButton {
+  height: 64rpx;
+  padding: 0 28rpx;
+  border-radius: $radius-button;
+  font-size: $font-size-sm;
+  border: none;
+}
+
+.primaryBtn {
+  background: linear-gradient(135deg, $color-primary 0%, $color-primary-light 100%);
+  color: $color-text-white;
+}
+
+.ratingResult {
+  margin-top: 20rpx;
+  padding: 20rpx;
+  background: $color-bg-page;
+  border-radius: $radius-md;
+}
+
+.ratingStars {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.ratingScore {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-bold;
+  color: $color-primary;
+  margin-left: 8rpx;
+}
+
+.ratingCommentDisplay {
+  margin-top: 16rpx;
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  line-height: 1.5;
+}
+
+.ratingResult .statusTag {
+  margin-top: 16rpx;
+  display: inline-block;
+}
+
+.ratingForm {
+  margin-top: 20rpx;
+  padding: 20rpx;
+  background: $color-bg-page;
+  border-radius: $radius-md;
+}
+
+.ratingStarsInteractive {
+  display: flex;
+  gap: 12rpx;
+  justify-content: center;
+  padding: 8rpx 0;
+}
+
+.starInteractive {
+  padding: 4rpx 8rpx;
+}
+
+.ratingHint {
+  text-align: center;
+  font-size: 22rpx;
+  color: $color-text-tertiary;
+  margin-bottom: 16rpx;
+}
+
+.ratingTextarea {
+  width: 100%;
+  height: 140rpx;
+  background: $color-text-white;
+  border: 1rpx solid $color-border;
+  border-radius: $radius-md;
+  padding: 16rpx;
+  font-size: $font-size-sm;
+  box-sizing: border-box;
+}
+
+.submitRatingBtn {
+  width: 100%;
+  margin-top: 16rpx;
+}

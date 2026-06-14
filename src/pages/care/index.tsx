@@ -11,8 +11,18 @@ const CarePage: React.FC = () => {
   const pets = useAppStore(s => s.pets);
   const updateCareRecord = useAppStore(s => s.updateCareRecord);
   const addCarePhoto = useAppStore(s => s.addCarePhoto);
-  const addMessage = useAppStore(s => s.addMessage);
+  const addCareMessage = useAppStore(s => s.addCareMessage);
   const initFromStorage = useAppStore(s => s.initFromStorage);
+
+  const checkedInIds = pets.filter(p => p.status === 'checked-in').map(p => p.id);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const activeCareRecords = careRecords.filter(
+    r => checkedInIds.includes(r.petId) && r.date === todayStr
+  ).sort((a, b) => {
+    const aIdx = checkedInIds.indexOf(a.petId);
+    const bIdx = checkedInIds.indexOf(b.petId);
+    return aIdx - bIdx;
+  });
 
   const [refreshing, setRefreshing] = useState(false);
   const [walkingTimers, setWalkingTimers] = useState<Record<string, number>>({});
@@ -47,7 +57,7 @@ const CarePage: React.FC = () => {
   const getTotalStats = () => {
     let completed = 0;
     let total = 0;
-    careRecords.forEach(record => {
+    activeCareRecords.forEach(record => {
       record.feeding.forEach(f => { total++; if (f.completed) completed++; });
       record.watering.forEach(w => { total++; if (w.completed) completed++; });
       record.walking.forEach(w => { total++; if (w.status === 'completed') completed++; });
@@ -68,22 +78,7 @@ const CarePage: React.FC = () => {
     }, 800);
   }, [initFromStorage]);
 
-  const pushCareMessage = (petId: string, petName: string, content: string) => {
-    const msg: Message = {
-      id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      type: 'care-update',
-      receiptConfirmed: false,
-      title: `${petName} 的照护动态`,
-      content,
-      petId,
-      petName,
-      time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-      date: new Date().toISOString().split('T')[0],
-      read: false,
-      confirmed: false
-    };
-    addMessage(msg);
-  };
+  const nowTime = () => new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 
   const toggleFeeding = (petId: string, petName: string, feeding: FeedingRecord) => {
     const newCompleted = !feeding.completed;
@@ -92,7 +87,11 @@ const CarePage: React.FC = () => {
       feeding: r.feeding.map(f => f.id === feeding.id ? { ...f, completed: newCompleted } : f)
     }));
     if (newCompleted) {
-      pushCareMessage(petId, petName, `🍚 ${feeding.time} 喂食完成（${feeding.foodType} ${feeding.amount}）`);
+      addCareMessage(petId, petName, {
+        type: 'feeding',
+        time: nowTime(),
+        desc: `${feeding.time} 喂食完成（${feeding.foodType} ${feeding.amount}）`
+      });
     }
     Taro.showToast({ title: newCompleted ? '打卡成功' : '已取消打卡', icon: 'success' });
   };
@@ -104,7 +103,11 @@ const CarePage: React.FC = () => {
       watering: r.watering.map(w => w.id === watering.id ? { ...w, completed: newCompleted } : w)
     }));
     if (newCompleted) {
-      pushCareMessage(petId, petName, `💧 ${watering.time} 饮水补充完成（${watering.amount}）`);
+      addCareMessage(petId, petName, {
+        type: 'watering',
+        time: nowTime(),
+        desc: `${watering.time} 饮水补充完成（${watering.amount}）`
+      });
     }
     Taro.showToast({ title: newCompleted ? '打卡成功' : '已取消打卡', icon: 'success' });
   };
@@ -116,11 +119,15 @@ const CarePage: React.FC = () => {
       medication: r.medication.map(m => m.id === medication.id ? {
         ...m,
         completed: newCompleted,
-        completedTime: newCompleted ? new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : undefined
+        completedTime: newCompleted ? nowTime() : undefined
       } : m)
     }));
     if (newCompleted) {
-      pushCareMessage(petId, petName, `💊 ${medication.scheduledTime} 用药完成（${medication.name} ${medication.dosage}）`);
+      addCareMessage(petId, petName, {
+        type: 'medication',
+        time: nowTime(),
+        desc: `${medication.scheduledTime} 用药完成（${medication.name} ${medication.dosage}）`
+      });
     }
     Taro.showToast({ title: newCompleted ? '用药已记录' : '已取消', icon: 'success' });
   };
@@ -132,11 +139,15 @@ const CarePage: React.FC = () => {
       grooming: grooming ? {
         ...grooming,
         completed: newCompleted,
-        completedTime: newCompleted ? new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : undefined
+        completedTime: newCompleted ? nowTime() : undefined
       } : null
     }));
     if (newCompleted) {
-      pushCareMessage(petId, petName, `✂️ ${grooming.scheduledTime} 洗护完成（${grooming.type}）`);
+      addCareMessage(petId, petName, {
+        type: 'grooming',
+        time: nowTime(),
+        desc: `${grooming.scheduledTime} 洗护完成（${grooming.type}）`
+      });
     }
     Taro.showToast({ title: newCompleted ? '洗护已完成' : '已取消', icon: 'success' });
   };
@@ -148,7 +159,7 @@ const CarePage: React.FC = () => {
         walking: r.walking.map(w => w.id === walking.id ? {
           ...w,
           status: 'ongoing' as const,
-          startTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+          startTime: nowTime()
         } : w)
       }));
       setWalkingTimers(prev => ({ ...prev, [walking.id]: 0 }));
@@ -171,11 +182,15 @@ const CarePage: React.FC = () => {
         walking: r.walking.map(w => w.id === walking.id ? {
           ...w,
           status: 'completed' as const,
-          endTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+          endTime: nowTime(),
           duration: durationMinutes
         } : w)
       }));
-      pushCareMessage(petId, petName, `🐾 遛放完成，时长 ${durationMinutes} 分钟`);
+      addCareMessage(petId, petName, {
+        type: 'walking',
+        time: nowTime(),
+        desc: `遛放完成，时长 ${durationMinutes} 分钟`
+      });
       Taro.showToast({ title: '遛放已结束', icon: 'success' });
     }
   };
@@ -191,11 +206,15 @@ const CarePage: React.FC = () => {
           ...r,
           defecation: [...r.defecation, {
             id: `d_${Date.now()}`,
-            time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+            time: nowTime(),
             type: selectedType
           }]
         }));
-        pushCareMessage(petId, petName, `💩 排便记录：${typeLabels[res.tapIndex]}`);
+        addCareMessage(petId, petName, {
+          type: 'defecation',
+          time: nowTime(),
+          desc: `排便记录：${typeLabels[res.tapIndex]}`
+        });
         Taro.showToast({ title: `已记录：${typeLabels[res.tapIndex]}`, icon: 'success' });
       }
     });
@@ -206,7 +225,12 @@ const CarePage: React.FC = () => {
     const seed = seeds[Math.floor(Math.random() * seeds.length)] + Date.now();
     const photoUrl = `https://picsum.photos/seed/${seed}/400/400`;
     addCarePhoto(petId, photoUrl);
-    pushCareMessage(petId, petName, `📷 新增一张今日照片`);
+    addCareMessage(petId, petName, {
+      type: 'photo',
+      time: nowTime(),
+      desc: '新增一张今日照片',
+      photoUrl
+    });
     Taro.showToast({ title: '照片已添加', icon: 'success' });
   };
 
@@ -242,7 +266,7 @@ const CarePage: React.FC = () => {
       <View className={styles.overviewCard}>
         <View className={styles.overviewRow}>
           <View className={styles.overviewItem}>
-            <Text className={styles.overviewNumber}>{careRecords.length}</Text>
+            <Text className={styles.overviewNumber}>{activeCareRecords.length}</Text>
             <Text className={styles.overviewLabel}>在护宠物</Text>
           </View>
           <View className={styles.overviewDivider} />
@@ -262,11 +286,11 @@ const CarePage: React.FC = () => {
         <Text className={styles.progressText}>完成进度 {stats.percent}%</Text>
       </View>
 
-      {careRecords.length === 0 ? (
+      {activeCareRecords.length === 0 ? (
         <View className={styles.emptyTip}>暂无今日照护记录，请先在「宠物档案」进行入住登记</View>
       ) : (
         <View className={styles.petList}>
-          {careRecords.map(record => (
+          {activeCareRecords.map(record => (
             <View key={record.id} className={styles.petCareCard}>
               <View className={styles.petHeader}>
                 <Image

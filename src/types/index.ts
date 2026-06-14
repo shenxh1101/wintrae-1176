@@ -11,10 +11,12 @@ export interface Pet {
   ownerPhone: string;
   checkInDate: string;
   checkOutDate: string;
+  actualCheckOutDate?: string;
   roomNumber: string;
   vaccineInfo: VaccineInfo[];
   notes?: string;
   status: 'checked-in' | 'checked-out';
+  ratingId?: string;
 }
 
 export interface VaccineInfo {
@@ -99,7 +101,14 @@ export interface AbnormalReport {
   resolvedTime?: string;
 }
 
-export type MessageType = 'care-update' | 'abnormal-alert' | 'owner-receipt' | 'rating';
+export type MessageType = 'care-update' | 'abnormal-alert' | 'owner-receipt' | 'rating' | 'care-summary';
+
+export interface CareDetailItem {
+  type: 'feeding' | 'watering' | 'walking' | 'defecation' | 'grooming' | 'medication' | 'photo';
+  time: string;
+  desc: string;
+  photoUrl?: string;
+}
 
 export interface Message {
   id: string;
@@ -116,6 +125,10 @@ export interface Message {
   rating?: number;
   ratingComment?: string;
   reportId?: string;
+  careDetails?: CareDetailItem[];
+  isSummary?: boolean;
+  summaryCount?: number;
+  expanded?: boolean;
 }
 
 export interface DailyStats {

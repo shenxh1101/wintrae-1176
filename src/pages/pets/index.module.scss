@@ -376,3 +376,144 @@
   font-size: $font-size-md;
   font-weight: $font-weight-medium;
 }
+
+.filterTabs {
+  display: flex;
+  height: 72rpx;
+  gap: 16rpx;
+  margin-bottom: 32rpx;
+  background: $color-bg-card;
+  border-radius: $radius-md;
+  padding: 8rpx;
+}
+
+.filterTab {
+  @include button-reset;
+  flex: 1;
+  border-radius: $radius-sm;
+  padding: 16rpx 0;
+  text-align: center;
+  background: transparent;
+  border: none;
+  position: relative;
+}
+
+.filterTabActive {
+  background: $color-primary;
+  color: $color-text-white;
+  font-weight: $font-weight-semibold;
+}
+
+.filterTabText {
+  font-size: $font-size-sm;
+}
+
+.filterBadge {
+  position: absolute;
+  top: -4rpx;
+  right: -8rpx;
+  width: 28rpx;
+  height: 28rpx;
+  background: $color-error;
+  color: $color-text-white;
+  font-size: 18rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.emptyList {
+  padding: 120rpx 0;
+  text-align: center;
+}
+
+.emptyListText {
+  font-size: $font-size-md;
+  color: $color-text-tertiary;
+}
+
+.tagCheckedOut {
+  background: $color-bg-hover;
+  color: $color-text-secondary;
+}
+
+.petCardCheckedOut {
+  opacity: 0.85;
+  background: $color-bg-hover;
+}
+
+.petCardFooter {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 24rpx;
+}
+
+.btnSecondary {
+  @include button-reset;
+  background: $color-bg-hover;
+  color: $color-text-secondary;
+  height: 64rpx;
+  flex: 1;
+  border-radius: $radius-button;
+  border: none;
+  font-size: $font-size-sm;
+}
+
+.btnDanger {
+  @include button-reset;
+  background: linear-gradient(135deg, $color-error 0%, darken($color-error, 5%) 100%);
+  color: $color-text-white;
+  height: 64rpx;
+  flex: 1;
+  border-radius: $radius-button;
+  border: none;
+  font-size: $font-size-sm;
+}
+
+.ratingBox {
+  margin-top: 20rpx;
+  background: $color-bg-tag-orange-bg;
+  padding: 20rpx;
+  border-radius: $radius-md;
+}
+
+.ratingBoxLabel {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  margin-bottom: 12rpx;
+  display: block;
+}
+
+.ratingBoxContent {
+  display: block;
+}
+
+.ratingBoxStars {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.starSmall {
+  font-size: 24rpx;
+  color: $color-text-tertiary;
+}
+
+.starActive {
+  color: #FFB800;
+}
+
+.ratingBoxScore {
+  font-size: $font-size-md;
+  color: $color-primary;
+  font-weight: $font-weight-bold;
+  margin-left: 12rpx;
+}
+
+.ratingBoxComment {
+  margin-top: 8rpx;
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  line-height: 1.4;
+}

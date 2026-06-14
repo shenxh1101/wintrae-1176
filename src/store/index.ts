@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import Taro from '@tarojs/taro';
-import { Pet, CareRecord, AbnormalReport, Message, DailyStats, VaccineInfo } from '@/types';
+import { Pet, CareRecord, AbnormalReport, Message, DailyStats, VaccineInfo, CareDetailItem } from '@/types';
 import { mockPets, mockCareRecords, mockAbnormalReports, mockMessages, mockDailyStats } from '@/data/mockData';
 
 const STORAGE_KEY = 'pet_fostering_store_v1';
@@ -17,17 +17,30 @@ interface AppState {
 
   addPet: (pet: Pet) => void;
   updatePet: (id: string, updates: Partial<Pet>) => void;
+  checkoutPet: (petId: string) => void;
 
   updateCareRecord: (petId: string, updates: (record: CareRecord) => CareRecord) => void;
   addCarePhoto: (petId: string, photoUrl: string) => void;
+  getCareRecordsByPet: (petId: string) => CareRecord[];
 
   addAbnormalReport: (report: AbnormalReport) => void;
   updateAbnormalReport: (id: string, updates: Partial<AbnormalReport>) => void;
 
   addMessage: (message: Message) => void;
+  addCareMessage: (petId: string, petName: string, item: CareDetailItem) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
   markMessageRead: (id: string) => void;
+  toggleSummaryExpand: (id: string) => void;
 }
+
+const genId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
+const getToday = () => new Date().toISOString().split('T')[0];
+const getNow = () => new Date().toISOString();
+const formatTime = (iso: string) => {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
 
 const getInitialState = () => ({
   pets: mockPets,
@@ -79,7 +92,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   addPet: (pet) => {
     set(state => ({ pets: [pet, ...state.pets] }));
-    const today = new Date().toISOString().split('T')[0];
+    const today = getToday();
     const newCareRecord: CareRecord = {
       id: `c_${pet.id}`,
       petId: pet.id,
@@ -105,6 +118,62 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().saveToStorage();
   },
 
+  checkoutPet: (petId) => {
+    const pet = get().pets.find(p => p.id === petId);
+    if (!pet) return;
+    const today = getToday();
+    const now = getNow();
+    set(state => ({
+      pets: state.pets.map(p =>
+        p.id === petId ? { ...p, status: 'checked-out' as const, actualCheckOutDate: today } : p
+      )
+    }));
+    const summaryId = `sum_rcpt_${petId}_${today}`;
+    const petRecords = get().careRecords.filter(r => r.petId === petId);
+    const totalDays = petRecords.length;
+    let totalFeeding = 0, totalWatering = 0, totalWalking = 0, totalDefecation = 0, totalPhotos = 0;
+    petRecords.forEach(r => {
+      totalFeeding += r.feeding.filter(f => f.completed).length;
+      totalWatering += r.watering.filter(w => w.completed).length;
+      totalWalking += r.walking.filter(w => w.status === 'completed').length;
+      totalDefecation += r.defecation.length;
+      totalPhotos += r.photos.length;
+    });
+    const receiptSummary: Message = {
+      id: summaryId,
+      type: 'owner-receipt',
+      title: `${pet.name} 寄养回执`,
+      content: `共寄养${totalDays}天，完成喂食${totalFeeding}次、饮水${totalWatering}次、遛放${totalWalking}次、排便记录${totalDefecation}条、上传照片${totalPhotos}张`,
+      time: now,
+      date: today,
+      petId: pet.id,
+      petName: pet.name,
+      read: false,
+      receiptConfirmed: false
+    };
+    set(state => ({ messages: [receiptSummary, ...state.messages] }));
+    const ratingId = `rating_${petId}_${today}`;
+    const ratingMsg: Message = {
+      id: ratingId,
+      type: 'rating',
+      title: `请为 ${pet.name} 的本次寄养服务评价`,
+      content: '您的反馈是我们改进的动力，感谢您的支持！',
+      time: now,
+      date: today,
+      petId: pet.id,
+      petName: pet.name,
+      read: false,
+      rating: 0,
+      ratingComment: ''
+    };
+    set(state => ({ messages: [ratingMsg, ...state.messages] }));
+    set(state => ({
+      pets: state.pets.map(p => p.id === petId ? { ...p, ratingId } : p)
+    }));
+    get().saveToStorage();
+    console.log('[Store] Checked out pet:', pet.name);
+  },
+
   updateCareRecord: (petId, updater) => {
     set(state => ({
       careRecords: state.careRecords.map(r =>
@@ -121,6 +190,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       )
     }));
     get().saveToStorage();
+  },
+
+  getCareRecordsByPet: (petId) => {
+    return get().careRecords
+      .filter(r => r.petId === petId)
+      .sort((a, b) => b.date.localeCompare(a.date));
   },
 
   addAbnormalReport: (report) => {
@@ -144,12 +219,72 @@ export const useAppStore = create<AppState>((set, get) => ({
     console.log('[Store] Added message:', message.title);
   },
 
+  addCareMessage: (petId, petName, item) => {
+    const today = getToday();
+    const state = get();
+    const summaryId = `sum_${petId}_${today}`;
+    let existingSummary = state.messages.find(m => m.id === summaryId);
+    if (existingSummary) {
+      const details = existingSummary.careDetails || [];
+      details.push(item);
+      const counts: Record<string, number> = {};
+      details.forEach(d => { counts[d.type] = (counts[d.type] || 0) + 1; });
+      const labels: Record<string, string> = {
+        feeding: '喂食', watering: '饮水', walking: '遛放',
+        defecation: '排便', grooming: '洗护', medication: '用药', photo: '照片'
+      };
+      const summaryText = Object.entries(counts)
+        .map(([k, v]) => `${labels[k]}${v}次`)
+        .join('、');
+      set(s => ({
+        messages: s.messages.map(m =>
+          m.id === summaryId
+            ? {
+                ...m,
+                careDetails: details,
+                summaryCount: details.length,
+                content: summaryText,
+                time: getNow(),
+                read: false
+              }
+            : m
+        )
+      }));
+    } else {
+      const newSummary: Message = {
+        id: summaryId,
+        type: 'care-summary',
+        title: `${petName} ${today} 照护动态`,
+        content: '',
+        time: getNow(),
+        date: today,
+        petId,
+        petName,
+        read: false,
+        isSummary: true,
+        summaryCount: 1,
+        careDetails: [item],
+        expanded: false
+      };
+      set(s => ({ messages: [newSummary, ...s.messages] }));
+    }
+    get().saveToStorage();
+  },
+
   updateMessage: (id, updates) => {
     set(state => ({
       messages: state.messages.map(m =>
         m.id === id ? { ...m, ...updates } : m
       )
     }));
+    if (updates.rating && updates.rating > 0) {
+      const msg = get().messages.find(m => m.id === id);
+      if (msg && msg.petId) {
+        set(s => ({
+          pets: s.pets.map(p => p.id === msg.petId ? { ...p, ratingId: id } : p)
+        }));
+      }
+    }
     get().saveToStorage();
   },
 
@@ -157,6 +292,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     set(state => ({
       messages: state.messages.map(m =>
         m.id === id ? { ...m, read: true } : m
+      )
+    }));
+    get().saveToStorage();
+  },
+
+  toggleSummaryExpand: (id) => {
+    set(state => ({
+      messages: state.messages.map(m =>
+        m.id === id ? { ...m, expanded: !m.expanded } : m
       )
     }));
     get().saveToStorage();
