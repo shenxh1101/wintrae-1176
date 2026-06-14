@@ -1,0 +1,193 @@
+@use '@/styles/variables.scss' as *;
+
+.container {
+  padding: 24rpx $page-padding 48rpx;
+  min-height: 100vh;
+}
+
+.petHeader {
+  background: linear-gradient(135deg, $color-primary 0%, $color-primary-light 100%);
+  border-radius: $radius-xl;
+  padding: 40rpx 32rpx;
+  margin-bottom: 32rpx;
+  color: $color-text-white;
+}
+
+.petInfo {
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+}
+
+.petAvatar {
+  width: 140rpx;
+  height: 140rpx;
+  border-radius: $radius-round;
+  border: 4rpx solid rgba(255, 255, 255, 0.3);
+  background: $color-bg-card;
+  flex-shrink: 0;
+}
+
+.petBasic {
+  flex: 1;
+  min-width: 0;
+}
+
+.petName {
+  font-size: 44rpx;
+  font-weight: $font-weight-bold;
+  margin-bottom: 8rpx;
+}
+
+.petTags {
+  display: flex;
+  gap: 12rpx;
+  flex-wrap: wrap;
+  margin-bottom: 12rpx;
+}
+
+.petTag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44rpx;
+  padding: 0 16rpx;
+  border-radius: $radius-sm;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: $font-size-xs;
+  color: $color-text-white;
+}
+
+.petBreed {
+  font-size: $font-size-sm;
+  opacity: 0.9;
+}
+
+.infoSection {
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  padding: 32rpx;
+  margin-bottom: 24rpx;
+  box-shadow: $shadow-card;
+}
+
+.sectionTitle {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  margin-bottom: 24rpx;
+  padding-bottom: 16rpx;
+  border-bottom: 1rpx solid $color-divider;
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24rpx;
+}
+
+.infoItem {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.infoLabel {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.infoValue {
+  font-size: $font-size-md;
+  color: $color-text-primary;
+  font-weight: $font-weight-medium;
+}
+
+.vaccineList {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.vaccineItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx 24rpx;
+  background: $color-bg-page;
+  border-radius: $radius-md;
+}
+
+.vaccineInfo {
+  flex: 1;
+}
+
+.vaccineName {
+  font-size: $font-size-md;
+  color: $color-text-primary;
+  font-weight: $font-weight-medium;
+  margin-bottom: 4rpx;
+}
+
+.vaccineDate {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.vaccineStatus {
+  font-size: $font-size-xs;
+  padding: 8rpx 16rpx;
+  border-radius: $radius-sm;
+  background: $color-tag-green-bg;
+  color: $color-tag-green-text;
+  font-weight: $font-weight-medium;
+}
+
+.vaccineExpiring {
+  background: $color-tag-orange-bg;
+  color: $color-tag-orange-text;
+}
+
+.notesBox {
+  padding: 24rpx;
+  background: $color-bg-tag;
+  border-radius: $radius-md;
+}
+
+.notesText {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  line-height: 1.8;
+}
+
+.actionButtons {
+  display: flex;
+  gap: 20rpx;
+  margin-top: 32rpx;
+}
+
+.actionBtn {
+  @include button-reset;
+  flex: 1;
+  height: $button-height-lg;
+  border-radius: $radius-button;
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  transition: all $transition-base;
+
+  &:active {
+    opacity: 0.9;
+    transform: scale(0.98);
+  }
+}
+
+.primaryBtn {
+  background: linear-gradient(135deg, $color-primary 0%, $color-primary-light 100%);
+  color: $color-text-white;
+}
+
+.secondaryBtn {
+  background: $color-bg-card;
+  color: $color-primary;
+  border: 2rpx solid $color-primary;
+}

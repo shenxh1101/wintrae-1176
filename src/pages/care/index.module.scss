@@ -1,0 +1,300 @@
+@use '@/styles/variables.scss' as *;
+
+.container {
+  padding: 24rpx $page-padding 48rpx;
+  min-height: 100vh;
+}
+
+.header {
+  margin-bottom: 32rpx;
+}
+
+.title {
+  font-size: $font-size-xxl;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  margin-bottom: 8rpx;
+}
+
+.dateText {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+}
+
+.overviewCard {
+  background: linear-gradient(135deg, $color-primary 0%, $color-primary-light 100%);
+  border-radius: $radius-lg;
+  padding: 32rpx;
+  margin-bottom: 32rpx;
+  color: $color-text-white;
+}
+
+.overviewRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.overviewItem {
+  text-align: center;
+}
+
+.overviewNumber {
+  font-size: 48rpx;
+  font-weight: $font-weight-bold;
+  line-height: 1.2;
+}
+
+.overviewLabel {
+  font-size: $font-size-sm;
+  opacity: 0.9;
+  margin-top: 4rpx;
+}
+
+.overviewDivider {
+  width: 1rpx;
+  height: 60rpx;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.progressBar {
+  margin-top: 24rpx;
+  height: 12rpx;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: $radius-round;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: $color-text-white;
+  border-radius: $radius-round;
+  transition: width $transition-base;
+}
+
+.progressText {
+  font-size: $font-size-sm;
+  margin-top: 12rpx;
+  opacity: 0.9;
+  text-align: right;
+}
+
+.petList {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.petCareCard {
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  padding: 32rpx;
+  box-shadow: $shadow-card;
+}
+
+.petHeader {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  margin-bottom: 24rpx;
+}
+
+.petAvatar {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: $radius-round;
+  background: $color-bg-hover;
+  flex-shrink: 0;
+}
+
+.petInfo {
+  flex: 1;
+}
+
+.petName {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  margin-bottom: 4rpx;
+}
+
+.petSubInfo {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+}
+
+.taskSection {
+  margin-bottom: 24rpx;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  margin-bottom: 16rpx;
+}
+
+.taskList {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.taskItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20rpx 24rpx;
+  background: $color-bg-page;
+  border-radius: $radius-md;
+  transition: all $transition-base;
+}
+
+.taskInfo {
+  flex: 1;
+}
+
+.taskName {
+  font-size: $font-size-md;
+  color: $color-text-primary;
+  margin-bottom: 4rpx;
+}
+
+.taskDetail {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.taskStatus {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.checkButton {
+  @include button-reset;
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: $radius-round;
+  border: 3rpx solid $color-border;
+  background: $color-bg-card;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-base;
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.checked {
+  background: $color-success;
+  border-color: $color-success;
+}
+
+.checkIcon {
+  color: $color-text-white;
+  font-size: $font-size-lg;
+  font-weight: $font-weight-bold;
+}
+
+.ongoingBadge {
+  padding: 8rpx 16rpx;
+  background: $color-tag-orange-bg;
+  color: $color-tag-orange-text;
+  font-size: $font-size-xs;
+  border-radius: $radius-sm;
+  font-weight: $font-weight-medium;
+}
+
+.actionButton {
+  @include button-reset;
+  height: $button-height-sm;
+  padding: 0 24rpx;
+  border-radius: $radius-button;
+  font-size: $font-size-sm;
+  font-weight: $font-weight-medium;
+  transition: all $transition-base;
+
+  &:active {
+    opacity: 0.9;
+    transform: scale(0.98);
+  }
+}
+
+.primaryBtn {
+  background: linear-gradient(135deg, $color-primary 0%, $color-primary-light 100%);
+  color: $color-text-white;
+}
+
+.secondaryBtn {
+  background: $color-bg-tag;
+  color: $color-primary;
+}
+
+.dangerBtn {
+  background: $color-tag-red-bg;
+  color: $color-tag-red-text;
+}
+
+.photoSection {
+  margin-top: 8rpx;
+}
+
+.photoList {
+  display: flex;
+  gap: 12rpx;
+  flex-wrap: wrap;
+}
+
+.photoItem {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: $radius-md;
+  overflow: hidden;
+  background: $color-bg-hover;
+}
+
+.addPhotoBtn {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: $radius-md;
+  background: $color-bg-page;
+  border: 2rpx dashed $color-border;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: all $transition-base;
+
+  &:active {
+    background: $color-bg-hover;
+  }
+}
+
+.addPhotoIcon {
+  font-size: 48rpx;
+  color: $color-text-tertiary;
+  line-height: 1;
+}
+
+.addPhotoText {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  margin-top: 8rpx;
+}
+
+.emptyTip {
+  text-align: center;
+  padding: 48rpx 0;
+  color: $color-text-tertiary;
+  font-size: $font-size-md;
+}
