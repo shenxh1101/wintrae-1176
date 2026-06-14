@@ -212,6 +212,11 @@
   border: 2rpx solid $color-primary;
 }
 
+.warningBtn {
+  background: linear-gradient(135deg, #FF9500 0%, #FFB340 100%);
+  color: $color-text-white;
+}
+
 .emptyPhotos {
   padding: 40rpx;
   text-align: center;

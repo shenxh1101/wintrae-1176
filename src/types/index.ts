@@ -13,7 +13,7 @@ export interface Pet {
   checkOutDate: string;
   roomNumber: string;
   vaccineInfo: VaccineInfo[];
-  notes: string;
+  notes?: string;
   status: 'checked-in' | 'checked-out';
 }
 
@@ -21,7 +21,7 @@ export interface VaccineInfo {
   id: string;
   name: string;
   date: string;
-  nextDate: string;
+  nextDate?: string;
 }
 
 export interface CareRecord {
@@ -55,7 +55,7 @@ export interface WateringRecord {
 
 export interface WalkingRecord {
   id: string;
-  startTime: string;
+  startTime?: string;
   endTime?: string;
   duration?: number;
   status: 'pending' | 'ongoing' | 'completed';
@@ -96,20 +96,26 @@ export interface AbnormalReport {
   status: 'pending' | 'processing' | 'resolved';
   handler?: string;
   resolution?: string;
+  resolvedTime?: string;
 }
+
+export type MessageType = 'care-update' | 'abnormal-alert' | 'owner-receipt' | 'rating';
 
 export interface Message {
   id: string;
-  type: 'care-update' | 'abnormal-alert' | 'owner-receipt' | 'rating';
+  type: MessageType;
   title: string;
   content: string;
   time: string;
+  date?: string;
   petId?: string;
   petName?: string;
   read: boolean;
+  confirmed?: boolean;
   receiptConfirmed?: boolean;
   rating?: number;
   ratingComment?: string;
+  reportId?: string;
 }
 
 export interface DailyStats {

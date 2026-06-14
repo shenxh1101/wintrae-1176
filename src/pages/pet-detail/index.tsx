@@ -1,25 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Image, ScrollView, Button } from '@tarojs/components';
-import Taro, { useRouter } from '@tarojs/taro';
+import Taro, { useRouter, useDidShow } from '@tarojs/taro';
 import styles from './index.module.scss';
-import { mockPets } from '@/data/mockData';
+import { useAppStore } from '@/store';
 import { Pet } from '@/types';
 import classnames from 'classnames';
 
 const PetDetailPage: React.FC = () => {
   const router = useRouter();
+  const pets = useAppStore(s => s.pets);
+  const initFromStorage = useAppStore(s => s.initFromStorage);
   const [pet, setPet] = useState<Pet | null>(null);
 
-  useEffect(() => {
+  const loadPet = () => {
     const petId = router.params.id;
-    console.log('[PetDetail] Pet ID:', petId);
-    const foundPet = mockPets.find(p => p.id === petId);
+    const foundPet = pets.find(p => p.id === petId);
     if (foundPet) {
       setPet(foundPet);
     } else {
       Taro.showToast({ title: '宠物不存在', icon: 'none' });
     }
-  }, [router.params.id]);
+  };
+
+  useEffect(() => {
+    loadPet();
+  }, [router.params.id, pets]);
+
+  useDidShow(() => {
+    initFromStorage();
+    loadPet();
+  });
 
   if (!pet) {
     return (
@@ -32,12 +42,14 @@ const PetDetailPage: React.FC = () => {
   }
 
   const handleCallOwner = () => {
-    console.log('[PetDetail] Call owner:', pet.ownerPhone);
-    Taro.showToast({ title: '呼叫主人功能', icon: 'none' });
+    if (pet.ownerPhone) {
+      Taro.makePhoneCall({ phoneNumber: pet.ownerPhone }).catch(() => {});
+    } else {
+      Taro.showToast({ title: '暂无联系电话', icon: 'none' });
+    }
   };
 
   const handleGoCare = () => {
-    console.log('[PetDetail] Go to care page for:', pet.id);
     Taro.switchTab({ url: '/pages/care/index' });
   };
 
@@ -54,12 +66,12 @@ const PetDetailPage: React.FC = () => {
             <Text className={styles.petName}>{pet.name}</Text>
             <View className={styles.petTags}>
               <Text className={styles.petTag}>
-                {pet.type === 'dog' ? '🐕 狗狗' : '🐱 猫咪'}
+                {pet.type === 'dog' ? '🐕 狗狗' : pet.type === 'cat' ? '🐱 猫咪' : '🐾 其他'}
               </Text>
               <Text className={styles.petTag}>
                 {pet.gender === 'male' ? '♂ 公' : '♀ 母'}
               </Text>
-              <Text className={styles.petTag}>
+              <Text className={classnames(styles.petTag, pet.status === 'checked-in' ? styles.tagGreen : styles.tagGray)}>
                 {pet.status === 'checked-in' ? '已入住' : '已离店'}
               </Text>
             </View>
@@ -114,21 +126,26 @@ const PetDetailPage: React.FC = () => {
 
       <View className={styles.infoSection}>
         <Text className={styles.sectionTitle}>疫苗信息</Text>
-        <View className={styles.vaccineList}>
-          {pet.vaccineInfo.map(vaccine => (
-            <View key={vaccine.id} className={styles.vaccineItem}>
-              <View className={styles.vaccineInfo}>
-                <Text className={styles.vaccineName}>{vaccine.name}</Text>
-                <Text className={styles.vaccineDate}>
-                  接种日期：{vaccine.date} · 下次：{vaccine.nextDate}
+        {pet.vaccineInfo.length > 0 ? (
+          <View className={styles.vaccineList}>
+            {pet.vaccineInfo.map(vaccine => (
+              <View key={vaccine.id} className={styles.vaccineItem}>
+                <View className={styles.vaccineInfo}>
+                  <Text className={styles.vaccineName}>💉 {vaccine.name}</Text>
+                  <Text className={styles.vaccineDate}>
+                    接种日期：{vaccine.date}
+                    {vaccine.nextDate && ` · 下次：${vaccine.nextDate}`}
+                  </Text>
+                </View>
+                <Text className={classnames(styles.vaccineStatus)}>
+                  有效
                 </Text>
               </View>
-              <Text className={classnames(styles.vaccineStatus)}>
-                有效
-              </Text>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        ) : (
+          <View className={styles.emptyVaccine}>暂无疫苗记录</View>
+        )}
       </View>
 
       {pet.notes && (

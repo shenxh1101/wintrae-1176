@@ -1,15 +1,22 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, Image, ScrollView, Button } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import styles from './index.module.scss';
-import { mockCareRecords, mockPets } from '@/data/mockData';
-import { CareRecord, FeedingRecord, WateringRecord, WalkingRecord, MedicationRecord, GroomingRecord } from '@/types';
+import { useAppStore } from '@/store';
+import { CareRecord, FeedingRecord, WateringRecord, WalkingRecord, MedicationRecord, GroomingRecord, Message } from '@/types';
 import classnames from 'classnames';
 
 const CarePage: React.FC = () => {
-  const [careRecords, setCareRecords] = useState<CareRecord[]>(mockCareRecords);
+  const careRecords = useAppStore(s => s.careRecords);
+  const pets = useAppStore(s => s.pets);
+  const updateCareRecord = useAppStore(s => s.updateCareRecord);
+  const addCarePhoto = useAppStore(s => s.addCarePhoto);
+  const addMessage = useAppStore(s => s.addMessage);
+  const initFromStorage = useAppStore(s => s.initFromStorage);
+
   const [refreshing, setRefreshing] = useState(false);
   const [walkingTimers, setWalkingTimers] = useState<Record<string, number>>({});
+  const intervalRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
   const today = new Date().toLocaleDateString('zh-CN', {
     year: 'numeric',
@@ -19,11 +26,10 @@ const CarePage: React.FC = () => {
   });
 
   useEffect(() => {
-    const timers: Record<string, ReturnType<typeof setInterval>> = {};
     careRecords.forEach(record => {
       record.walking.forEach(walk => {
-        if (walk.status === 'ongoing') {
-          timers[walk.id] = setInterval(() => {
+        if (walk.status === 'ongoing' && !intervalRefs.current[walk.id]) {
+          intervalRefs.current[walk.id] = setInterval(() => {
             setWalkingTimers(prev => ({
               ...prev,
               [walk.id]: (prev[walk.id] || 0) + 1
@@ -33,7 +39,8 @@ const CarePage: React.FC = () => {
       });
     });
     return () => {
-      Object.values(timers).forEach(timer => clearInterval(timer));
+      Object.values(intervalRefs.current).forEach(timer => clearInterval(timer));
+      intervalRefs.current = {};
     };
   }, [careRecords]);
 
@@ -55,110 +62,152 @@ const CarePage: React.FC = () => {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setTimeout(() => {
+      initFromStorage();
       setRefreshing(false);
       Taro.showToast({ title: '刷新成功', icon: 'success' });
-    }, 1000);
-  }, []);
+    }, 800);
+  }, [initFromStorage]);
 
-  const toggleFeeding = (recordId: string, feeding: FeedingRecord) => {
-    console.log('[Care] Toggle feeding:', recordId, feeding.id, feeding.completed);
-    setCareRecords(prev => prev.map(r => {
-      if (r.id !== recordId) return r;
-      return {
-        ...r,
-        feeding: r.feeding.map(f => f.id === feeding.id ? { ...f, completed: !f.completed } : f)
-      };
-    }));
-    Taro.showToast({ title: feeding.completed ? '已取消打卡' : '打卡成功', icon: 'success' });
+  const pushCareMessage = (petId: string, petName: string, content: string) => {
+    const msg: Message = {
+      id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      type: 'care-update',
+      receiptConfirmed: false,
+      title: `${petName} 的照护动态`,
+      content,
+      petId,
+      petName,
+      time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      date: new Date().toISOString().split('T')[0],
+      read: false,
+      confirmed: false
+    };
+    addMessage(msg);
   };
 
-  const toggleWatering = (recordId: string, watering: WateringRecord) => {
-    console.log('[Care] Toggle watering:', recordId, watering.id, watering.completed);
-    setCareRecords(prev => prev.map(r => {
-      if (r.id !== recordId) return r;
-      return {
-        ...r,
-        watering: r.watering.map(w => w.id === watering.id ? { ...w, completed: !w.completed } : w)
-      };
+  const toggleFeeding = (petId: string, petName: string, feeding: FeedingRecord) => {
+    const newCompleted = !feeding.completed;
+    updateCareRecord(petId, r => ({
+      ...r,
+      feeding: r.feeding.map(f => f.id === feeding.id ? { ...f, completed: newCompleted } : f)
     }));
-    Taro.showToast({ title: watering.completed ? '已取消打卡' : '打卡成功', icon: 'success' });
+    if (newCompleted) {
+      pushCareMessage(petId, petName, `🍚 ${feeding.time} 喂食完成（${feeding.foodType} ${feeding.amount}）`);
+    }
+    Taro.showToast({ title: newCompleted ? '打卡成功' : '已取消打卡', icon: 'success' });
   };
 
-  const toggleMedication = (recordId: string, medication: MedicationRecord) => {
-    console.log('[Care] Toggle medication:', recordId, medication.id, medication.completed);
-    setCareRecords(prev => prev.map(r => {
-      if (r.id !== recordId) return r;
-      return {
-        ...r,
-        medication: r.medication.map(m => m.id === medication.id ? { ...m, completed: !m.completed, completedTime: !m.completed ? new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : undefined } : m)
-      };
+  const toggleWatering = (petId: string, petName: string, watering: WateringRecord) => {
+    const newCompleted = !watering.completed;
+    updateCareRecord(petId, r => ({
+      ...r,
+      watering: r.watering.map(w => w.id === watering.id ? { ...w, completed: newCompleted } : w)
     }));
-    Taro.showToast({ title: medication.completed ? '已取消' : '用药已记录', icon: 'success' });
+    if (newCompleted) {
+      pushCareMessage(petId, petName, `💧 ${watering.time} 饮水补充完成（${watering.amount}）`);
+    }
+    Taro.showToast({ title: newCompleted ? '打卡成功' : '已取消打卡', icon: 'success' });
   };
 
-  const toggleGrooming = (recordId: string, grooming: GroomingRecord) => {
-    console.log('[Care] Toggle grooming:', recordId, grooming.id, grooming.completed);
-    setCareRecords(prev => prev.map(r => {
-      if (r.id !== recordId) return r;
-      return {
-        ...r,
-        grooming: grooming ? { ...grooming, completed: !grooming.completed, completedTime: !grooming.completed ? new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : undefined } : null
-      };
+  const toggleMedication = (petId: string, petName: string, medication: MedicationRecord) => {
+    const newCompleted = !medication.completed;
+    updateCareRecord(petId, r => ({
+      ...r,
+      medication: r.medication.map(m => m.id === medication.id ? {
+        ...m,
+        completed: newCompleted,
+        completedTime: newCompleted ? new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : undefined
+      } : m)
     }));
-    Taro.showToast({ title: grooming.completed ? '已取消' : '洗护已完成', icon: 'success' });
+    if (newCompleted) {
+      pushCareMessage(petId, petName, `💊 ${medication.scheduledTime} 用药完成（${medication.name} ${medication.dosage}）`);
+    }
+    Taro.showToast({ title: newCompleted ? '用药已记录' : '已取消', icon: 'success' });
   };
 
-  const handleWalking = (recordId: string, walking: WalkingRecord) => {
-    console.log('[Care] Handle walking:', recordId, walking.id, walking.status);
+  const toggleGrooming = (petId: string, petName: string, grooming: GroomingRecord) => {
+    const newCompleted = !grooming.completed;
+    updateCareRecord(petId, r => ({
+      ...r,
+      grooming: grooming ? {
+        ...grooming,
+        completed: newCompleted,
+        completedTime: newCompleted ? new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : undefined
+      } : null
+    }));
+    if (newCompleted) {
+      pushCareMessage(petId, petName, `✂️ ${grooming.scheduledTime} 洗护完成（${grooming.type}）`);
+    }
+    Taro.showToast({ title: newCompleted ? '洗护已完成' : '已取消', icon: 'success' });
+  };
+
+  const handleWalking = (petId: string, petName: string, walking: WalkingRecord) => {
     if (walking.status === 'pending') {
-      setCareRecords(prev => prev.map(r => {
-        if (r.id !== recordId) return r;
-        return {
-          ...r,
-          walking: r.walking.map(w => w.id === walking.id ? { ...w, status: 'ongoing' as const, startTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) } : w)
-        };
+      updateCareRecord(petId, r => ({
+        ...r,
+        walking: r.walking.map(w => w.id === walking.id ? {
+          ...w,
+          status: 'ongoing' as const,
+          startTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+        } : w)
       }));
       setWalkingTimers(prev => ({ ...prev, [walking.id]: 0 }));
+      intervalRefs.current[walking.id] = setInterval(() => {
+        setWalkingTimers(prev => ({
+          ...prev,
+          [walking.id]: (prev[walking.id] || 0) + 1
+        }));
+      }, 1000);
       Taro.showToast({ title: '遛放已开始', icon: 'success' });
     } else if (walking.status === 'ongoing') {
       const duration = walkingTimers[walking.id] || 0;
-      setCareRecords(prev => prev.map(r => {
-        if (r.id !== recordId) return r;
-        return {
-          ...r,
-          walking: r.walking.map(w => w.id === walking.id ? { ...w, status: 'completed' as const, endTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }), duration: Math.floor(duration / 60) || 1 } : w)
-        };
+      const durationMinutes = Math.floor(duration / 60) || 1;
+      if (intervalRefs.current[walking.id]) {
+        clearInterval(intervalRefs.current[walking.id]);
+        delete intervalRefs.current[walking.id];
+      }
+      updateCareRecord(petId, r => ({
+        ...r,
+        walking: r.walking.map(w => w.id === walking.id ? {
+          ...w,
+          status: 'completed' as const,
+          endTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+          duration: durationMinutes
+        } : w)
       }));
+      pushCareMessage(petId, petName, `🐾 遛放完成，时长 ${durationMinutes} 分钟`);
       Taro.showToast({ title: '遛放已结束', icon: 'success' });
     }
   };
 
-  const handleAddDefecation = (recordId: string, petName: string) => {
-    console.log('[Care] Add defecation:', recordId, petName);
+  const handleAddDefecation = (petId: string, petName: string) => {
     Taro.showActionSheet({
       itemList: ['正常', '偏软', '腹泻', '便秘'],
       success: (res) => {
         const types: Array<'normal' | 'soft' | 'diarrhea' | 'constipation'> = ['normal', 'soft', 'diarrhea', 'constipation'];
         const typeLabels = ['正常', '偏软', '腹泻', '便秘'];
-        setCareRecords(prev => prev.map(r => {
-          if (r.id !== recordId) return r;
-          return {
-            ...r,
-            defecation: [...r.defecation, {
-              id: `d_${Date.now()}`,
-              time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-              type: types[res.tapIndex]
-            }]
-          };
+        const selectedType = types[res.tapIndex];
+        updateCareRecord(petId, r => ({
+          ...r,
+          defecation: [...r.defecation, {
+            id: `d_${Date.now()}`,
+            time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+            type: selectedType
+          }]
         }));
+        pushCareMessage(petId, petName, `💩 排便记录：${typeLabels[res.tapIndex]}`);
         Taro.showToast({ title: `已记录：${typeLabels[res.tapIndex]}`, icon: 'success' });
       }
     });
   };
 
-  const handleAddPhoto = (recordId: string, petName: string) => {
-    console.log('[Care] Add photo:', recordId, petName);
-    Taro.showToast({ title: '选择照片功能', icon: 'none' });
+  const handleAddPhoto = (petId: string, petName: string) => {
+    const seeds = ['cute', 'pet', 'dog', 'cat', 'puppy', 'kitten', 'animal', 'furry'];
+    const seed = seeds[Math.floor(Math.random() * seeds.length)] + Date.now();
+    const photoUrl = `https://picsum.photos/seed/${seed}/400/400`;
+    addCarePhoto(petId, photoUrl);
+    pushCareMessage(petId, petName, `📷 新增一张今日照片`);
+    Taro.showToast({ title: '照片已添加', icon: 'success' });
   };
 
   const formatWalkingTime = (seconds: number) => {
@@ -168,12 +217,12 @@ const CarePage: React.FC = () => {
   };
 
   const getPetAvatar = (petId: string) => {
-    const pet = mockPets.find(p => p.id === petId);
+    const pet = pets.find(p => p.id === petId);
     return pet?.avatar || '';
   };
 
   const getPetRoom = (petId: string) => {
-    const pet = mockPets.find(p => p.id === petId);
+    const pet = pets.find(p => p.id === petId);
     return pet?.roomNumber || '';
   };
 
@@ -203,7 +252,7 @@ const CarePage: React.FC = () => {
           </View>
           <View className={styles.overviewDivider} />
           <View className={styles.overviewItem}>
-            <Text className={styles.overviewNumber}>{stats.total - stats.completed}</Text>
+            <Text className={styles.overviewNumber}>{Math.max(0, stats.total - stats.completed)}</Text>
             <Text className={styles.overviewLabel}>待完成</Text>
           </View>
         </View>
@@ -214,7 +263,7 @@ const CarePage: React.FC = () => {
       </View>
 
       {careRecords.length === 0 ? (
-        <View className={styles.emptyTip}>暂无今日照护记录</View>
+        <View className={styles.emptyTip}>暂无今日照护记录，请先在「宠物档案」进行入住登记</View>
       ) : (
         <View className={styles.petList}>
           {careRecords.map(record => (
@@ -244,7 +293,7 @@ const CarePage: React.FC = () => {
                         <View className={styles.taskStatus}>
                           <Button
                             className={classnames(styles.checkButton, f.completed && styles.checked)}
-                            onClick={() => toggleFeeding(record.id, f)}
+                            onClick={() => toggleFeeding(record.petId, record.petName, f)}
                           >
                             {f.completed && <Text className={styles.checkIcon}>✓</Text>}
                           </Button>
@@ -268,7 +317,7 @@ const CarePage: React.FC = () => {
                         <View className={styles.taskStatus}>
                           <Button
                             className={classnames(styles.checkButton, w.completed && styles.checked)}
-                            onClick={() => toggleWatering(record.id, w)}
+                            onClick={() => toggleWatering(record.petId, record.petName, w)}
                           >
                             {w.completed && <Text className={styles.checkIcon}>✓</Text>}
                           </Button>
@@ -287,7 +336,7 @@ const CarePage: React.FC = () => {
                       <View key={w.id} className={styles.taskItem}>
                         <View className={styles.taskInfo}>
                           <Text className={styles.taskName}>
-                            {w.startTime} 开始
+                            {w.startTime || '待开始'}
                             {w.status === 'completed' && w.duration ? ` · 时长 ${w.duration}分钟` : ''}
                             {w.status === 'ongoing' && ` · 进行中 ${formatWalkingTime(walkingTimers[w.id] || 0)}`}
                           </Text>
@@ -299,12 +348,12 @@ const CarePage: React.FC = () => {
                         </View>
                         <View className={styles.taskStatus}>
                           {w.status === 'pending' && (
-                            <Button className={classnames(styles.actionButton, styles.primaryBtn)} onClick={() => handleWalking(record.id, w)}>
+                            <Button className={classnames(styles.actionButton, styles.primaryBtn)} onClick={() => handleWalking(record.petId, record.petName, w)}>
                               开始遛放
                             </Button>
                           )}
                           {w.status === 'ongoing' && (
-                            <Button className={classnames(styles.actionButton, styles.dangerBtn)} onClick={() => handleWalking(record.id, w)}>
+                            <Button className={classnames(styles.actionButton, styles.dangerBtn)} onClick={() => handleWalking(record.petId, record.petName, w)}>
                               结束
                             </Button>
                           )}
@@ -344,7 +393,7 @@ const CarePage: React.FC = () => {
                   ))}
                   <Button
                     className={classnames(styles.actionButton, styles.secondaryBtn)}
-                    onClick={() => handleAddDefecation(record.id, record.petName)}
+                    onClick={() => handleAddDefecation(record.petId, record.petName)}
                   >
                     + 添加排便记录
                   </Button>
@@ -365,7 +414,7 @@ const CarePage: React.FC = () => {
                       <View className={styles.taskStatus}>
                         <Button
                           className={classnames(styles.checkButton, record.grooming.completed && styles.checked)}
-                          onClick={() => toggleGrooming(record.id, record.grooming!)}
+                          onClick={() => toggleGrooming(record.petId, record.petName, record.grooming!)}
                         >
                           {record.grooming.completed && <Text className={styles.checkIcon}>✓</Text>}
                         </Button>
@@ -391,7 +440,7 @@ const CarePage: React.FC = () => {
                         <View className={styles.taskStatus}>
                           <Button
                             className={classnames(styles.checkButton, m.completed && styles.checked)}
-                            onClick={() => toggleMedication(record.id, m)}
+                            onClick={() => toggleMedication(record.petId, record.petName, m)}
                           >
                             {m.completed && <Text className={styles.checkIcon}>✓</Text>}
                           </Button>
@@ -413,7 +462,7 @@ const CarePage: React.FC = () => {
                       mode="aspectFill"
                     />
                   ))}
-                  <View className={styles.addPhotoBtn} onClick={() => handleAddPhoto(record.id, record.petName)}>
+                  <View className={styles.addPhotoBtn} onClick={() => handleAddPhoto(record.petId, record.petName)}>
                     <Text className={styles.addPhotoIcon}>+</Text>
                     <Text className={styles.addPhotoText}>添加照片</Text>
                   </View>

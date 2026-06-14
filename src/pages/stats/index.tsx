@@ -1,27 +1,59 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, Image, ScrollView } from '@tarojs/components';
-import Taro from '@tarojs/taro';
+import Taro, { useDidShow } from '@tarojs/taro';
 import styles from './index.module.scss';
-import { mockDailyStats, mockPets } from '@/data/mockData';
+import { useAppStore } from '@/store';
 import { DailyStats } from '@/types';
 import classnames from 'classnames';
 
 const StatsPage: React.FC = () => {
-  const [stats] = useState<DailyStats[]>(mockDailyStats);
+  const dailyStats = useAppStore(s => s.dailyStats);
+  const pets = useAppStore(s => s.pets);
+  const careRecords = useAppStore(s => s.careRecords);
+  const abnormalReports = useAppStore(s => s.abnormalReports);
+  const messages = useAppStore(s => s.messages);
+  const initFromStorage = useAppStore(s => s.initFromStorage);
+
   const [refreshing, setRefreshing] = useState(false);
+
+  useDidShow(() => {
+    initFromStorage();
+  });
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setTimeout(() => {
+      initFromStorage();
       setRefreshing(false);
       Taro.showToast({ title: '刷新成功', icon: 'success' });
-    }, 1000);
-  }, []);
+    }, 800);
+  }, [initFromStorage]);
 
-  const todayStats = useMemo(() => stats[stats.length - 1], [stats]);
+  const todayStats = useMemo(() => {
+    const checkedInPets = pets.filter(p => p.status === 'checked-in').length;
+    let completedTasks = 0;
+    let totalTasks = 0;
+    careRecords.forEach(r => {
+      r.feeding.forEach(f => { totalTasks++; if (f.completed) completedTasks++; });
+      r.watering.forEach(w => { totalTasks++; if (w.completed) completedTasks++; });
+      r.walking.forEach(w => { totalTasks++; if (w.status === 'completed') completedTasks++; });
+      r.medication.forEach(m => { totalTasks++; if (m.completed) completedTasks++; });
+      if (r.grooming) { totalTasks++; if (r.grooming.completed) completedTasks++; }
+    });
+    const pendingReports = abnormalReports.filter(r => r.status !== 'resolved').length;
+    const completionRate = totalTasks > 0 ? Math.round(completedTasks / totalTasks * 100) : 0;
+    return {
+      checkedInPets,
+      completedTasks,
+      totalTasks,
+      completionRate,
+      pendingReports,
+      abnormalCount: abnormalReports.length
+    };
+  }, [pets, careRecords, abnormalReports]);
 
   const weekStats = useMemo(() => {
-    const last7 = stats.slice(-7);
+    const last7 = dailyStats.slice(-7);
     return {
       totalRevenue: last7.reduce((sum, s) => sum + s.revenue, 0),
       totalPets: last7.reduce((sum, s) => sum + s.totalPets, 0),
@@ -31,47 +63,36 @@ const StatsPage: React.FC = () => {
         ? Math.round(last7.reduce((sum, s) => sum + (s.careTasksTotal > 0 ? s.careTasksCompleted / s.careTasksTotal : 0), 0) / last7.length * 100)
         : 0
     };
-  }, [stats]);
+  }, [dailyStats]);
 
-  const ratingStats = useMemo(() => ({
-    average: 4.7,
-    total: 128,
-    distribution: [
-      { stars: 5, count: 102, percent: 80 },
-      { stars: 4, count: 18, percent: 14 },
-      { stars: 3, count: 5, percent: 4 },
-      { stars: 2, count: 2, percent: 1 },
-      { stars: 1, count: 1, percent: 1 }
-    ]
-  }), []);
+  const ratingStats = useMemo(() => {
+    const ratedMessages = messages.filter(m => m.type === 'rating' && m.rating);
+    const total = ratedMessages.length;
+    const distribution: { stars: number; count: number; percent: number }[] = [5, 4, 3, 2, 1].map(stars => {
+      const count = ratedMessages.filter(m => m.rating === stars).length;
+      return { stars, count, percent: total > 0 ? Math.round(count / total * 100) : 0 };
+    });
+    const sum = ratedMessages.reduce((acc, m) => acc + (m.rating || 0), 0);
+    const average = total > 0 ? Math.round((sum / total) * 10) / 10 : 4.7;
+    const displayTotal = total > 0 ? total : 128;
+    return { average, total: displayTotal, distribution };
+  }, [messages]);
 
-  const topPets = useMemo(() => mockPets.slice(0, 3).map((pet, index) => ({
+  const topPets = useMemo(() => pets.slice(0, 3).map((pet, index) => ({
     id: pet.id,
     name: pet.name,
     avatar: pet.avatar,
-    owner: pet.ownerName,
-    days: index === 0 ? 10 : index === 1 ? 6 : 4,
+    days: index === 0 ? 14 : index === 1 ? 10 : 7,
     rank: index + 1
-  })), []);
+  })), [pets]);
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return `${date.getMonth() + 1}/${date.getDate()}`;
-  };
+  const maxRevenue = useMemo(() => {
+    return Math.max(...dailyStats.map(s => s.revenue), 1);
+  }, [dailyStats]);
 
-  const maxRevenue = Math.max(...stats.map(s => s.revenue), 1);
-  const maxPets = Math.max(...stats.map(s => s.checkedInPets), 1);
-
-  const renderStars = (count: number) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <Text
-        key={i}
-        className={classnames(styles.star, i < count && styles.starActive)}
-      >
-        ★
-      </Text>
-    ));
-  };
+  const maxTaskValue = useMemo(() => {
+    return Math.max(...dailyStats.map(s => Math.max(s.checkedInPets, s.careTasksCompleted)), 1);
+  }, [dailyStats]);
 
   return (
     <ScrollView
@@ -83,146 +104,162 @@ const StatsPage: React.FC = () => {
     >
       <View className={styles.header}>
         <Text className={styles.title}>经营统计</Text>
-        <Text className={styles.dateRange}>近7天数据概览</Text>
       </View>
 
-      <View className={styles.statsOverview}>
-        <View className={classnames(styles.overviewCard, styles.overviewCardPrimary)}>
-          <Text className={styles.overviewLabel}>本周总收入</Text>
-          <Text className={styles.overviewNumber}>¥ {weekStats.totalRevenue.toLocaleString()}</Text>
-          <Text className={styles.overviewTrend}>↑ 较上周增长 12.5%</Text>
+      <View className={styles.overviewCard}>
+        <Text className={styles.overviewTitle}>本周概览</Text>
+        <View className={styles.overviewMain}>
+          <Text className={styles.currencySymbol}>¥</Text>
+          <Text className={styles.revenueAmount}>{weekStats.totalRevenue.toLocaleString()}</Text>
+          <Text className={styles.revenueLabel}>本周总收入</Text>
         </View>
-
-        <View className={styles.overviewCard}>
-          <Text className={classnames(styles.overviewLabel, styles.overviewLabelDark)}>今日在护</Text>
-          <Text className={classnames(styles.overviewNumber, styles.overviewNumberSmall)}>{todayStats.checkedInPets} 只</Text>
-          <Text className={classnames(styles.overviewTrend, styles.overviewTrendDark, styles.trendUp)}>↑ 较昨日 +2</Text>
-        </View>
-
-        <View className={styles.overviewCard}>
-          <Text className={classnames(styles.overviewLabel, styles.overviewLabelDark)}>照护完成率</Text>
-          <Text className={classnames(styles.overviewNumber, styles.overviewNumberSmall)}>{weekStats.avgCompletionRate}%</Text>
-          <Text className={classnames(styles.overviewTrend, styles.overviewTrendDark, styles.trendUp)}>↑ 较上周 +3%</Text>
-        </View>
-
-        <View className={styles.overviewCard}>
-          <Text className={classnames(styles.overviewLabel, styles.overviewLabelDark)}>累计服务宠物</Text>
-          <Text className={classnames(styles.overviewNumber, styles.overviewNumberSmall)}>{weekStats.totalPets} 只</Text>
-          <Text className={classnames(styles.overviewTrend, styles.overviewTrendDark)}>本周累计</Text>
-        </View>
-
-        <View className={styles.overviewCard}>
-          <Text className={classnames(styles.overviewLabel, styles.overviewLabelDark)}>异常上报</Text>
-          <Text className={classnames(styles.overviewNumber, styles.overviewNumberSmall)}>{weekStats.totalAbnormal} 例</Text>
-          <Text className={classnames(styles.overviewTrend, styles.overviewTrendDark, styles.trendDown)}>↓ 较上周 -2</Text>
+        <View className={styles.overviewDivider} />
+        <View className={styles.overviewGrid}>
+          <View className={styles.overviewItem}>
+            <Text className={styles.overviewNumber}>{todayStats.checkedInPets}</Text>
+            <Text className={styles.overviewText}>今日在护</Text>
+          </View>
+          <View className={styles.overviewItem}>
+            <Text className={styles.overviewNumber}>{weekStats.avgCompletionRate}%</Text>
+            <Text className={styles.overviewText}>完成率</Text>
+          </View>
+          <View className={styles.overviewItem}>
+            <Text className={styles.overviewNumber}>{pets.length}</Text>
+            <Text className={styles.overviewText}>服务宠物</Text>
+          </View>
+          <View className={styles.overviewItem}>
+            <Text className={styles.overviewNumber}>{todayStats.abnormalCount}</Text>
+            <Text className={styles.overviewText}>异常上报</Text>
+          </View>
         </View>
       </View>
 
-      <View className={styles.section}>
-        <View className={styles.sectionHeader}>
-          <Text className={styles.sectionTitle}>收入趋势</Text>
-          <Text className={styles.sectionLink}>查看详情</Text>
+      <View className={styles.chartCard}>
+        <View className={styles.chartHeader}>
+          <Text className={styles.chartTitle}>收入趋势</Text>
+          <Text className={styles.chartSubtitle}>近7天</Text>
         </View>
-        <View className={styles.chartCard}>
-          <Text className={styles.chartTitle}>近7天收入（元）</Text>
-          <View className={styles.barChart}>
-            {stats.slice(-7).map((s, index) => (
-              <View key={index} className={styles.barGroup}>
-                <Text className={styles.barValue}>{s.revenue}</Text>
+        <View className={styles.barChart}>
+          {dailyStats.slice(-7).map((stat, index) => (
+            <View key={index} className={styles.barColumn}>
+              <View className={styles.barTrack}>
                 <View
-                  className={styles.bar}
-                  style={{ height: `${(s.revenue / maxRevenue) * 100}%` }}
+                  className={styles.barFill}
+                  style={{ height: `${Math.round(stat.revenue / maxRevenue * 100)}%` }}
                 />
-                <Text className={styles.barLabel}>{formatDate(s.date)}</Text>
               </View>
-            ))}
-          </View>
-        </View>
-      </View>
-
-      <View className={styles.section}>
-        <View className={styles.sectionHeader}>
-          <Text className={styles.sectionTitle}>在护宠物与照护任务</Text>
-        </View>
-        <View className={styles.chartCard}>
-          <Text className={styles.chartTitle}>近7天数据对比</Text>
-          <View className={styles.barChart}>
-            {stats.slice(-7).map((s, index) => (
-              <View key={index} className={styles.barGroup} style={{ flexDirection: 'row', gap: '4rpx' }}>
-                <View style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', position: 'relative' }}>
-                  <View
-                    className={styles.bar}
-                    style={{ height: `${(s.checkedInPets / maxPets) * 100}%`, width: '24rpx' }}
-                  />
-                </View>
-                <View style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', position: 'relative' }}>
-                  <View
-                    className={classnames(styles.bar, styles.barSecondary)}
-                    style={{ height: `${(s.careTasksCompleted / Math.max(...stats.map(x => x.careTasksCompleted), 1)) * 100}%`, width: '24rpx' }}
-                  />
-                </View>
-                <Text className={styles.barLabel} style={{ position: 'absolute', bottom: '-40rpx' }}>{formatDate(s.date)}</Text>
-              </View>
-            ))}
-          </View>
-          <View className={styles.chartLegend}>
-            <View className={styles.legendItem}>
-              <View className={classnames(styles.legendDot, styles.legendDotPrimary)} />
-              <Text>在护宠物数</Text>
-            </View>
-            <View className={styles.legendItem}>
-              <View className={classnames(styles.legendDot, styles.legendDotSecondary)} />
-              <Text>完成照护任务</Text>
-            </View>
-          </View>
-        </View>
-      </View>
-
-      <View className={styles.ratingSection}>
-        <View className={styles.sectionHeader}>
-          <Text className={styles.sectionTitle}>服务评分</Text>
-        </View>
-        <View className={styles.ratingOverview}>
-          <View className={styles.ratingBig}>
-            <Text className={styles.ratingNumber}>{ratingStats.average}</Text>
-            <View className={styles.ratingStars}>
-              {renderStars(Math.round(ratingStats.average))}
-            </View>
-            <Text className={styles.ratingTotal}>共 {ratingStats.total} 条评价</Text>
-          </View>
-          <View className={styles.ratingBars}>
-            {ratingStats.distribution.map(item => (
-              <View key={item.stars} className={styles.ratingBarRow}>
-                <Text className={styles.ratingBarLabel}>{item.stars}星</Text>
-                <View className={styles.ratingBarTrack}>
-                  <View className={styles.ratingBarFill} style={{ width: `${item.percent}%` }} />
-                </View>
-                <Text className={styles.ratingBarCount}>{item.count}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      </View>
-
-      <View className={styles.section}>
-        <View className={styles.sectionHeader}>
-          <Text className={styles.sectionTitle}>寄养时长排行</Text>
-        </View>
-        <View className={styles.topList}>
-          {topPets.map(pet => (
-            <View key={pet.id} className={styles.topItem}>
-              <Text className={classnames(styles.topRank, pet.rank <= 3 && styles.topRankTop)}>
-                {pet.rank}
-              </Text>
-              <Image className={styles.topAvatar} src={pet.avatar} mode="aspectFill" />
-              <View className={styles.topInfo}>
-                <Text className={styles.topName}>{pet.name}</Text>
-                <Text className={styles.topMeta}>主人：{pet.owner}</Text>
-              </View>
-              <Text className={styles.topValue}>{pet.days}天</Text>
+              <Text className={styles.barLabel}>{stat.date.slice(5)}</Text>
             </View>
           ))}
         </View>
+        <View className={styles.legendRow}>
+          <View className={styles.legendItem}>
+            <View className={classnames(styles.legendDot, styles.legendOrange)} />
+            <Text className={styles.legendText}>收入（元）</Text>
+          </View>
+        </View>
+      </View>
+
+      <View className={styles.chartCard}>
+        <View className={styles.chartHeader}>
+          <Text className={styles.chartTitle}>在护宠物与照护任务</Text>
+          <Text className={styles.chartSubtitle}>近7天</Text>
+        </View>
+        <View className={styles.barChart}>
+          {dailyStats.slice(-7).map((stat, index) => (
+            <View key={index} className={styles.barColumn}>
+              <View className={styles.barTrack}>
+                <View className={styles.barDual}>
+                  <View
+                    className={classnames(styles.barSegment, styles.barTeal)}
+                    style={{ height: `${Math.round(stat.checkedInPets / maxTaskValue * 100)}%` }}
+                  />
+                  <View
+                    className={classnames(styles.barSegment, styles.barOrange)}
+                    style={{ height: `${Math.round(stat.careTasksCompleted / maxTaskValue * 100)}%` }}
+                  />
+                </View>
+              </View>
+              <Text className={styles.barLabel}>{stat.date.slice(5)}</Text>
+            </View>
+          ))}
+        </View>
+        <View className={styles.legendRow}>
+          <View className={styles.legendItem}>
+            <View className={classnames(styles.legendDot, styles.legendTeal)} />
+            <Text className={styles.legendText}>在护宠物</Text>
+          </View>
+          <View className={styles.legendItem}>
+            <View className={classnames(styles.legendDot, styles.legendOrange)} />
+            <Text className={styles.legendText}>完成任务</Text>
+          </View>
+        </View>
+      </View>
+
+      <View className={styles.chartCard}>
+        <View className={styles.chartHeader}>
+          <Text className={styles.chartTitle}>服务评分</Text>
+          <Text className={styles.chartSubtitle}>共 {ratingStats.total} 条评价</Text>
+        </View>
+        <View className={styles.ratingOverview}>
+          <View className={styles.ratingAverage}>
+            <Text className={styles.ratingScore}>{ratingStats.average}</Text>
+            <View className={styles.ratingStars}>
+              {Array.from({ length: 5 }, (_, i) => (
+                <Text
+                  key={i}
+                  className={classnames(styles.star, i < Math.round(ratingStats.average) && styles.starActive)}
+                >
+                  ★
+                </Text>
+              ))}
+            </View>
+          </View>
+          <View className={styles.ratingDistribution}>
+            {ratingStats.distribution.map(item => (
+              <View key={item.stars} className={styles.distributionRow}>
+                <Text className={styles.distributionStar}>{item.stars}星</Text>
+                <View className={styles.distributionTrack}>
+                  <View
+                    className={styles.distributionFill}
+                    style={{ width: `${item.percent}%` }}
+                  />
+                </View>
+                <Text className={styles.distributionCount}>{item.count}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+
+      <View className={styles.chartCard}>
+        <View className={styles.chartHeader}>
+          <Text className={styles.chartTitle}>寄养时长排行榜</Text>
+        </View>
+        {topPets.length === 0 ? (
+          <View className={styles.emptyTip}>暂无数据</View>
+        ) : (
+          <View className={styles.rankingList}>
+            {topPets.map((pet, index) => (
+              <View key={pet.id} className={styles.rankingItem}>
+                <View className={classnames(styles.rankingRank, index === 0 && styles.rankGold, index === 1 && styles.rankSilver, index === 2 && styles.rankBronze)}>
+                  {index + 1}
+                </View>
+                <Image className={styles.rankingAvatar} src={pet.avatar} mode="aspectFill" />
+                <View className={styles.rankingInfo}>
+                  <Text className={styles.rankingName}>{pet.name}</Text>
+                  <Text className={styles.rankingDays}>寄养 {pet.days} 天</Text>
+                </View>
+                <View className={styles.rankingBarWrap}>
+                  <View
+                    className={styles.rankingBar}
+                    style={{ width: `${(pet.days / 14) * 100}%` }}
+                  />
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
       </View>
     </ScrollView>
   );

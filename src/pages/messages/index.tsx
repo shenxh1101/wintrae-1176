@@ -1,15 +1,20 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, Image, ScrollView, Button, Textarea } from '@tarojs/components';
-import Taro from '@tarojs/taro';
+import Taro, { useDidShow } from '@tarojs/taro';
 import styles from './index.module.scss';
-import { mockMessages } from '@/data/mockData';
-import { Message } from '@/types';
+import { useAppStore } from '@/store';
+import { Message, MessageType } from '@/types';
 import classnames from 'classnames';
 
-type FilterType = 'all' | 'care-update' | 'abnormal-alert' | 'owner-receipt' | 'rating';
+type FilterType = 'all' | MessageType;
 
 const MessagesPage: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>(mockMessages);
+  const messages = useAppStore(s => s.messages);
+  const updateMessage = useAppStore(s => s.updateMessage);
+  const markMessageRead = useAppStore(s => s.markMessageRead);
+  const addMessage = useAppStore(s => s.addMessage);
+  const initFromStorage = useAppStore(s => s.initFromStorage);
+
   const [filter, setFilter] = useState<FilterType>('all');
   const [refreshing, setRefreshing] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
@@ -17,15 +22,20 @@ const MessagesPage: React.FC = () => {
   const [ratingValue, setRatingValue] = useState(0);
   const [ratingComment, setRatingComment] = useState('');
 
+  useDidShow(() => {
+    initFromStorage();
+  });
+
   const unreadCount = messages.filter(m => !m.read).length;
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setTimeout(() => {
+      initFromStorage();
       setRefreshing(false);
       Taro.showToast({ title: '刷新成功', icon: 'success' });
-    }, 1000);
-  }, []);
+    }, 800);
+  }, [initFromStorage]);
 
   const filteredMessages = messages.filter(m => {
     if (filter === 'all') return true;
@@ -60,34 +70,67 @@ const MessagesPage: React.FC = () => {
     }
   };
 
-  const handleMessageClick = (message: Message) => {
-    console.log('[Messages] Click message:', message.id, message.type);
-    if (!message.read) {
-      setMessages(prev => prev.map(m => m.id === message.id ? { ...m, read: true } : m));
+  const refreshSelected = (id: string) => {
+    const updated = messages.find(m => m.id === id);
+    if (updated) {
+      setSelectedMessage(updated);
     }
-    setSelectedMessage(message);
-    setRatingValue(message.rating || 0);
-    setRatingComment(message.ratingComment || '');
+  };
+
+  const handleMessageClick = (message: Message) => {
+    if (!message.read) {
+      markMessageRead(message.id);
+    }
+    const current = messages.find(m => m.id === message.id) || message;
+    setSelectedMessage(current);
+    setRatingValue(current.rating || 0);
+    setRatingComment(current.ratingComment || '');
     setShowDetail(true);
   };
 
   const handleConfirmReceipt = (messageId: string) => {
-    console.log('[Messages] Confirm receipt:', messageId);
-    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, receiptConfirmed: true } : m));
+    updateMessage(messageId, {
+      receiptConfirmed: true,
+      confirmed: true
+    });
+    const current = messages.find(m => m.id === messageId);
+    if (current && current.petId && current.petName) {
+      const receiptMsg: Message = {
+        id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        type: 'owner-receipt',
+        title: `${current.petName} 主人已确认`,
+        content: `✅ 主人已确认今日照护完成，感谢您的服务！`,
+        petId: current.petId,
+        petName: current.petName,
+        time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        date: new Date().toISOString().split('T')[0],
+        read: false,
+        confirmed: true
+      };
+      addMessage(receiptMsg);
+    }
     Taro.showToast({ title: '已确认照护完成', icon: 'success' });
+    setTimeout(() => {
+      refreshSelected(messageId);
+    }, 300);
     setShowDetail(false);
   };
 
   const handleSubmitRating = () => {
-    console.log('[Messages] Submit rating:', { ratingValue, ratingComment });
     if (ratingValue === 0) {
       Taro.showToast({ title: '请选择评分', icon: 'none' });
       return;
     }
     if (selectedMessage) {
-      setMessages(prev => prev.map(m => m.id === selectedMessage.id ? { ...m, rating: ratingValue, ratingComment } : m));
+      updateMessage(selectedMessage.id, {
+        rating: ratingValue,
+        ratingComment
+      });
+      Taro.showToast({ title: '评价提交成功', icon: 'success' });
+      setTimeout(() => {
+        refreshSelected(selectedMessage.id);
+      }, 300);
     }
-    Taro.showToast({ title: '评价提交成功', icon: 'success' });
     setShowDetail(false);
   };
 
@@ -98,7 +141,7 @@ const MessagesPage: React.FC = () => {
         className={classnames(
           size === 'small' ? styles.star : styles.starLarge,
           i < count && (size === 'small' ? styles.starActive : styles.starLargeActive),
-          interactive && size === 'large' && styles.starLarge
+          interactive && size === 'large' && styles.starInteractive
         )}
         onClick={interactive ? () => setRatingValue(i + 1) : undefined}
       >
@@ -177,7 +220,7 @@ const MessagesPage: React.FC = () => {
                 </View>
               )}
 
-              {(message.type === 'care-update' && !message.receiptConfirmed) || message.type === 'rating' ? (
+              {((message.type === 'care-update' && !message.receiptConfirmed) || (message.type === 'rating' && !message.rating)) && (
                 <View className={styles.messageActions}>
                   {message.type === 'care-update' && !message.receiptConfirmed && (
                     <Button
@@ -196,7 +239,7 @@ const MessagesPage: React.FC = () => {
                     </Button>
                   )}
                 </View>
-              ) : null}
+              )}
             </View>
           ))}
         </View>
@@ -230,9 +273,17 @@ const MessagesPage: React.FC = () => {
               {selectedMessage.type === 'care-update' && (
                 <View className={styles.detailRow}>
                   <Text className={styles.detailLabel}>确认状态</Text>
-                  <Text className={styles.detailValue}>
-                    {selectedMessage.receiptConfirmed ? '已确认' : '待确认'}
+                  <Text className={classnames(styles.detailValue, selectedMessage.receiptConfirmed ? styles.textGreen : styles.textOrange)}>
+                    {selectedMessage.receiptConfirmed ? '✓ 已确认' : '待确认'}
                   </Text>
+                </View>
+              )}
+              {selectedMessage.type === 'rating' && selectedMessage.rating && (
+                <View className={styles.detailRow}>
+                  <Text className={styles.detailLabel}>服务评分</Text>
+                  <View style={{ flex: 1 }}>
+                    {renderStars(selectedMessage.rating)}
+                  </View>
                 </View>
               )}
             </View>
@@ -241,12 +292,19 @@ const MessagesPage: React.FC = () => {
               <Text className={styles.detailBodyText}>{selectedMessage.content}</Text>
             </View>
 
-            {selectedMessage.type === 'rating' && (
+            {selectedMessage.type === 'rating' && !selectedMessage.rating && (
               <View className={styles.ratingSection}>
                 <Text className={styles.ratingSectionTitle}>服务评分</Text>
                 <View className={styles.ratingStarsLarge}>
                   {renderStars(ratingValue, 'large', true)}
                 </View>
+                <Text className={styles.ratingHint}>
+                  {ratingValue === 1 && '很不满意'}
+                  {ratingValue === 2 && '不满意'}
+                  {ratingValue === 3 && '一般'}
+                  {ratingValue === 4 && '满意'}
+                  {ratingValue === 5 && '非常满意'}
+                </Text>
                 <Textarea
                   className={styles.ratingTextarea}
                   placeholder="请输入您的评价（选填）..."
@@ -265,7 +323,7 @@ const MessagesPage: React.FC = () => {
                   确认照护完成
                 </Button>
               )}
-              {selectedMessage.type === 'rating' && (
+              {selectedMessage.type === 'rating' && !selectedMessage.rating && (
                 <Button
                   className={classnames(styles.actionFullBtn, styles.primaryBtn)}
                   onClick={handleSubmitRating}
@@ -273,7 +331,10 @@ const MessagesPage: React.FC = () => {
                   提交评价
                 </Button>
               )}
-              {(selectedMessage.type === 'abnormal-alert' || selectedMessage.type === 'owner-receipt' || (selectedMessage.type === 'care-update' && selectedMessage.receiptConfirmed) || (selectedMessage.type === 'rating' && selectedMessage.rating)) && (
+              {((selectedMessage.type === 'care-update' && selectedMessage.receiptConfirmed) ||
+                (selectedMessage.type === 'rating' && selectedMessage.rating) ||
+                selectedMessage.type === 'abnormal-alert' ||
+                selectedMessage.type === 'owner-receipt') && (
                 <Button
                   className={classnames(styles.actionFullBtn, styles.ghostBtn)}
                   onClick={() => setShowDetail(false)}

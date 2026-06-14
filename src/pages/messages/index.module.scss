@@ -359,6 +359,27 @@
   color: #FFB800;
 }
 
+.starInteractive {
+  cursor: pointer;
+}
+
+.textGreen {
+  color: #00B42A;
+  font-weight: $font-weight-semibold;
+}
+
+.textOrange {
+  color: $color-primary;
+  font-weight: $font-weight-semibold;
+}
+
+.ratingHint {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  text-align: center;
+  margin-bottom: 20rpx;
+}
+
 .ratingTextarea {
   width: 100%;
   min-height: 200rpx;

@@ -2,8 +2,8 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, Image, ScrollView, Button, Textarea } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import styles from './index.module.scss';
-import { mockAbnormalReports, mockPets } from '@/data/mockData';
-import { AbnormalReport } from '@/types';
+import { useAppStore } from '@/store';
+import { AbnormalReport, Message } from '@/types';
 import classnames from 'classnames';
 
 const SYMPTOM_OPTIONS = [
@@ -15,7 +15,12 @@ const SYMPTOM_OPTIONS = [
 type FilterType = 'all' | 'pending' | 'processing' | 'resolved';
 
 const ReportPage: React.FC = () => {
-  const [reports, setReports] = useState<AbnormalReport[]>(mockAbnormalReports);
+  const reports = useAppStore(s => s.abnormalReports);
+  const pets = useAppStore(s => s.pets);
+  const addAbnormalReport = useAppStore(s => s.addAbnormalReport);
+  const addMessage = useAppStore(s => s.addMessage);
+  const initFromStorage = useAppStore(s => s.initFromStorage);
+
   const [filter, setFilter] = useState<FilterType>('all');
   const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -27,10 +32,11 @@ const ReportPage: React.FC = () => {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setTimeout(() => {
+      initFromStorage();
       setRefreshing(false);
       Taro.showToast({ title: '刷新成功', icon: 'success' });
-    }, 1000);
-  }, []);
+    }, 800);
+  }, [initFromStorage]);
 
   const filteredReports = reports.filter(r => {
     if (filter === 'all') return true;
@@ -46,7 +52,7 @@ const ReportPage: React.FC = () => {
   };
 
   const getPetAvatar = (petId: string) => {
-    const pet = mockPets.find(p => p.id === petId);
+    const pet = pets.find(p => p.id === petId);
     return pet?.avatar || '';
   };
 
@@ -59,8 +65,7 @@ const ReportPage: React.FC = () => {
   };
 
   const handleAddPhoto = () => {
-    console.log('[Report] Add photo');
-    const newPhoto = `https://picsum.photos/id/${Math.floor(Math.random() * 100)}/300/300`;
+    const newPhoto = `https://picsum.photos/seed/symptom${Date.now()}/300/300`;
     setPhotos(prev => [...prev, newPhoto]);
   };
 
@@ -68,8 +73,14 @@ const ReportPage: React.FC = () => {
     setPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
+  const resetForm = () => {
+    setSelectedPetId('');
+    setSelectedSymptoms([]);
+    setDescription('');
+    setPhotos([]);
+  };
+
   const handleSubmit = () => {
-    console.log('[Report] Submit report:', { selectedPetId, selectedSymptoms, description, photos });
     if (!selectedPetId) {
       Taro.showToast({ title: '请选择宠物', icon: 'none' });
       return;
@@ -83,34 +94,47 @@ const ReportPage: React.FC = () => {
       return;
     }
 
-    const pet = mockPets.find(p => p.id === selectedPetId);
+    const pet = pets.find(p => p.id === selectedPetId);
     const newReport: AbnormalReport = {
       id: `r_${Date.now()}`,
       petId: selectedPetId,
       petName: pet?.name || '',
       reportTime: new Date().toLocaleString('zh-CN'),
       symptoms: selectedSymptoms,
-      description,
+      description: description.trim(),
       photos,
       status: 'pending'
     };
 
-    setReports(prev => [newReport, ...prev]);
-    Taro.showToast({ title: '上报成功', icon: 'success' });
+    addAbnormalReport(newReport);
 
+    const msg: Message = {
+      id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      type: 'abnormal-alert',
+      title: `${pet?.name || '宠物'} 异常提醒`,
+      content: `⚠️ ${selectedSymptoms.join('、')} — ${description.trim()}`,
+      petId: selectedPetId,
+      petName: pet?.name || '',
+      time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      date: new Date().toISOString().split('T')[0],
+      read: false,
+      confirmed: false,
+      reportId: newReport.id
+    };
+    addMessage(msg);
+
+    Taro.showToast({ title: '上报成功', icon: 'success' });
     setShowModal(false);
-    setSelectedPetId('');
-    setSelectedSymptoms([]);
-    setDescription('');
-    setPhotos([]);
+    resetForm();
   };
 
   const handleReportClick = (report: AbnormalReport) => {
-    console.log('[Report] Navigate to report detail:', report.id);
     Taro.navigateTo({
       url: `/pages/report-detail/index?id=${report.id}`
     });
   };
+
+  const checkedInPets = pets.filter(p => p.status === 'checked-in');
 
   return (
     <ScrollView
@@ -220,18 +244,22 @@ const ReportPage: React.FC = () => {
 
             <View className={styles.formSection}>
               <Text className={styles.formLabel}>选择宠物</Text>
-              <View className={styles.petSelector}>
-                {mockPets.filter(p => p.status === 'checked-in').map(pet => (
-                  <Button
-                    key={pet.id}
-                    className={classnames(styles.petOption, selectedPetId === pet.id && styles.petOptionActive)}
-                    onClick={() => setSelectedPetId(pet.id)}
-                  >
-                    <Image className={styles.petOptionAvatar} src={pet.avatar} mode="aspectFill" />
-                    <Text className={styles.petOptionName}>{pet.name}</Text>
-                  </Button>
-                ))}
-              </View>
+              {checkedInPets.length === 0 ? (
+                <Text className={styles.emptySubTip}>暂无入住宠物，请先在「宠物档案」登记</Text>
+              ) : (
+                <View className={styles.petSelector}>
+                  {checkedInPets.map(pet => (
+                    <Button
+                      key={pet.id}
+                      className={classnames(styles.petOption, selectedPetId === pet.id && styles.petOptionActive)}
+                      onClick={() => setSelectedPetId(pet.id)}
+                    >
+                      <Image className={styles.petOptionAvatar} src={pet.avatar} mode="aspectFill" />
+                      <Text className={styles.petOptionName}>{pet.name}</Text>
+                    </Button>
+                  ))}
+                </View>
+              )}
             </View>
 
             <View className={styles.formSection}>

@@ -1,25 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Image, ScrollView, Button } from '@tarojs/components';
-import Taro, { useRouter } from '@tarojs/taro';
+import Taro, { useRouter, useDidShow } from '@tarojs/taro';
 import styles from './index.module.scss';
-import { mockAbnormalReports, mockPets } from '@/data/mockData';
-import { AbnormalReport } from '@/types';
+import { useAppStore } from '@/store';
+import { AbnormalReport, Message } from '@/types';
 import classnames from 'classnames';
 
 const ReportDetailPage: React.FC = () => {
   const router = useRouter();
+  const reports = useAppStore(s => s.abnormalReports);
+  const pets = useAppStore(s => s.pets);
+  const updateAbnormalReport = useAppStore(s => s.updateAbnormalReport);
+  const addMessage = useAppStore(s => s.addMessage);
+  const initFromStorage = useAppStore(s => s.initFromStorage);
+
   const [report, setReport] = useState<AbnormalReport | null>(null);
 
-  useEffect(() => {
+  const loadReport = () => {
     const reportId = router.params.id;
-    console.log('[ReportDetail] Report ID:', reportId);
-    const foundReport = mockAbnormalReports.find(r => r.id === reportId);
+    const foundReport = reports.find(r => r.id === reportId);
     if (foundReport) {
       setReport(foundReport);
     } else {
       Taro.showToast({ title: '上报记录不存在', icon: 'none' });
     }
-  }, [router.params.id]);
+  };
+
+  useEffect(() => {
+    loadReport();
+  }, [router.params.id, reports]);
+
+  useDidShow(() => {
+    initFromStorage();
+    loadReport();
+  });
 
   if (!report) {
     return (
@@ -40,26 +54,69 @@ const ReportDetailPage: React.FC = () => {
   };
 
   const getPetAvatar = (petId: string) => {
-    const pet = mockPets.find(p => p.id === petId);
+    const pet = pets.find(p => p.id === petId);
     return pet?.avatar || '';
   };
 
+  const getPetPhone = (petId: string) => {
+    const pet = pets.find(p => p.id === petId);
+    return pet?.ownerPhone || '';
+  };
+
   const handleContactOwner = () => {
-    console.log('[ReportDetail] Contact owner for pet:', report.petId);
-    Taro.showToast({ title: '联系主人功能', icon: 'none' });
+    const phone = getPetPhone(report.petId);
+    if (phone) {
+      Taro.makePhoneCall({ phoneNumber: phone }).catch(() => {});
+    } else {
+      Taro.showToast({ title: '暂无联系电话', icon: 'none' });
+    }
   };
 
   const handleMarkResolved = () => {
-    console.log('[ReportDetail] Mark resolved:', report.id);
     Taro.showModal({
       title: '确认处理',
       content: '确认标记此异常已解决？',
       success: (res) => {
         if (res.confirm) {
+          updateAbnormalReport(report.id, {
+            status: 'resolved',
+            handler: '店员',
+            resolution: '已处理完成，宠物状态恢复正常',
+            resolvedTime: new Date().toLocaleString('zh-CN')
+          });
+
+          const msg: Message = {
+            id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            type: 'abnormal-alert',
+            title: `${report.petName} 异常已解决`,
+            content: `✅ ${report.symptoms.join('、')} — 已处理完成，宠物状态恢复正常`,
+            petId: report.petId,
+            petName: report.petName,
+            time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+            date: new Date().toISOString().split('T')[0],
+            read: false,
+            confirmed: false
+          };
+          addMessage(msg);
+
           Taro.showToast({ title: '已标记为已解决', icon: 'success' });
+          setTimeout(() => {
+            loadReport();
+          }, 500);
         }
       }
     });
+  };
+
+  const handleMarkProcessing = () => {
+    updateAbnormalReport(report.id, {
+      status: 'processing',
+      handler: '店员'
+    });
+    Taro.showToast({ title: '已标记为处理中', icon: 'success' });
+    setTimeout(() => {
+      loadReport();
+    }, 500);
   };
 
   return (
@@ -121,13 +178,19 @@ const ReportDetailPage: React.FC = () => {
         )}
       </View>
 
-      {(report.handler || report.resolution) && (
+      {(report.handler || report.resolution || report.resolvedTime) && (
         <View className={styles.handlerSection}>
           <Text className={styles.handlerTitle}>处理信息</Text>
           {report.handler && (
             <View className={styles.handlerInfo}>
               <Text className={styles.handlerLabel}>处理人</Text>
               <Text className={styles.handlerValue}>{report.handler}</Text>
+            </View>
+          )}
+          {report.resolvedTime && (
+            <View className={styles.handlerInfo}>
+              <Text className={styles.handlerLabel}>解决时间</Text>
+              <Text className={styles.handlerValue}>{report.resolvedTime}</Text>
             </View>
           )}
           {report.resolution && (
@@ -143,6 +206,14 @@ const ReportDetailPage: React.FC = () => {
         >
           📞 联系主人
         </Button>
+        {report.status === 'pending' && (
+          <Button
+            className={classnames(styles.actionBtn, styles.warningBtn)}
+            onClick={handleMarkProcessing}
+          >
+            🔄 开始处理
+          </Button>
+        )}
         {report.status !== 'resolved' && (
           <Button
             className={classnames(styles.actionBtn, styles.primaryBtn)}

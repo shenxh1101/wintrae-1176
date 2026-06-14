@@ -203,6 +203,13 @@
   font-size: $font-size-md;
 }
 
+.emptySubTip {
+  text-align: center;
+  padding: 24rpx 0;
+  color: $color-text-tertiary;
+  font-size: $font-size-sm;
+}
+
 .modalOverlay {
   position: fixed;
   top: 0;

@@ -58,6 +58,16 @@
   color: $color-text-white;
 }
 
+.tagGreen {
+  background: $color-tag-green-bg;
+  color: $color-tag-green-text;
+}
+
+.tagGray {
+  background: $color-bg-hover;
+  color: $color-text-secondary;
+}
+
 .petBreed {
   font-size: $font-size-sm;
   opacity: 0.9;
@@ -101,6 +111,15 @@
   font-size: $font-size-md;
   color: $color-text-primary;
   font-weight: $font-weight-medium;
+}
+
+.emptyVaccine {
+  text-align: center;
+  padding: 32rpx 0;
+  color: $color-text-tertiary;
+  font-size: $font-size-sm;
+  background: $color-bg-page;
+  border-radius: $radius-md;
 }
 
 .vaccineList {

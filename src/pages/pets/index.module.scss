@@ -190,3 +190,189 @@
   color: $color-text-secondary;
   line-height: 1.6;
 }
+
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  display: flex;
+  align-items: flex-end;
+}
+
+.modalSheet {
+  width: 100%;
+  max-height: 88vh;
+  background: $color-bg-page;
+  border-radius: 32rpx 32rpx 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sheetHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 32rpx 32rpx 24rpx;
+  border-bottom: 1rpx solid $color-divider;
+  background: $color-bg-card;
+}
+
+.sheetTitle {
+  font-size: $font-size-xl;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+}
+
+.sheetClose {
+  width: 56rpx;
+  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $color-text-tertiary;
+  font-size: 36rpx;
+}
+
+.sheetScroll {
+  flex: 1;
+  padding: 24rpx 32rpx;
+  overflow-y: auto;
+}
+
+.formSection {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-primary;
+  margin: 32rpx 0 16rpx;
+}
+
+.formRow {
+  margin-bottom: 20rpx;
+}
+
+.formLabel {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  margin-bottom: 12rpx;
+  display: block;
+}
+
+.formInput {
+  width: 100%;
+  height: 80rpx;
+  background: $color-bg-card;
+  border: 1rpx solid $color-border;
+  border-radius: $radius-md;
+  padding: 0 24rpx;
+  font-size: $font-size-md;
+  color: $color-text-primary;
+  box-sizing: border-box;
+}
+
+.formRow2 {
+  display: flex;
+  gap: 16rpx;
+  margin-bottom: 20rpx;
+}
+
+.formRowFlex {
+  flex: 1;
+}
+
+.pickerWrap {
+  width: 100%;
+  height: 80rpx;
+  background: $color-bg-card;
+  border: 1rpx solid $color-border;
+  border-radius: $radius-md;
+  padding: 0 24rpx;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.pickerText {
+  font-size: $font-size-md;
+  color: $color-text-primary;
+  width: 100%;
+}
+
+.vaccineList {
+  background: $color-bg-card;
+  border-radius: $radius-md;
+  padding: 8rpx 0;
+  margin-bottom: 16rpx;
+}
+
+.vaccineItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16rpx 24rpx;
+  border-bottom: 1rpx solid $color-divider;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.vaccineText {
+  font-size: $font-size-sm;
+  color: $color-text-primary;
+}
+
+.vaccineDel {
+  font-size: $font-size-sm;
+  color: $color-error;
+}
+
+.addVaccineBtn {
+  @include button-reset;
+  width: 100%;
+  height: 72rpx;
+  background: transparent;
+  border: 2rpx dashed $color-primary;
+  border-radius: $radius-md;
+  color: $color-primary;
+  font-size: $font-size-sm;
+  margin-top: 8rpx;
+}
+
+.formSpacer {
+  height: 40rpx;
+}
+
+.sheetFooter {
+  display: flex;
+  gap: 24rpx;
+  padding: 24rpx 32rpx 48rpx;
+  background: $color-bg-card;
+  border-top: 1rpx solid $color-divider;
+}
+
+.cancelBtn {
+  @include button-reset;
+  flex: 1;
+  height: $button-height-lg;
+  background: $color-bg-hover;
+  border-radius: $radius-button;
+  color: $color-text-secondary;
+  font-size: $font-size-md;
+  font-weight: $font-weight-medium;
+}
+
+.confirmBtn {
+  @include button-reset;
+  flex: 1;
+  height: $button-height-lg;
+  background: linear-gradient(135deg, $color-primary 0%, $color-primary-light 100%);
+  border-radius: $radius-button;
+  color: $color-text-white;
+  font-size: $font-size-md;
+  font-weight: $font-weight-medium;
+}

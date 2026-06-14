@@ -350,3 +350,193 @@
   color: $color-primary;
   flex-shrink: 0;
 }
+
+
+.emptyTip {
+  text-align: center;
+  padding: 60rpx 0;
+  color: $color-text-tertiary;
+  font-size: $font-size-md;
+}
+
+.legendOrange {
+  background: linear-gradient(180deg, $color-primary 0%, $color-primary-light 100%);
+}
+
+.legendTeal {
+  background: linear-gradient(180deg, $color-secondary 0%, $color-secondary-light 100%);
+}
+
+.barDual {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 4rpx;
+  height: 100%;
+}
+
+.barSegment {
+  flex: 1;
+  border-radius: $radius-xs $radius-xs 0 0;
+  transition: height $transition-base;
+  min-height: 4rpx;
+}
+
+.barTeal {
+  background: linear-gradient(180deg, $color-secondary 0%, $color-secondary-light 100%);
+}
+
+.barOrange {
+  background: linear-gradient(180deg, $color-primary 0%, $color-primary-light 100%);
+}
+
+.rankingList {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.rankingItem {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid $color-divider;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.rankingRank {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: $radius-round;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: $font-size-sm;
+  font-weight: $font-weight-semibold;
+  background: $color-bg-hover;
+  color: $color-text-secondary;
+  flex-shrink: 0;
+}
+
+.rankGold {
+  background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+  color: $color-text-white;
+}
+
+.rankSilver {
+  background: linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%);
+  color: $color-text-white;
+}
+
+.rankBronze {
+  background: linear-gradient(135deg, #CD7F32 0%, #B87333 100%);
+  color: $color-text-white;
+}
+
+.rankingAvatar {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: $radius-round;
+  background: $color-bg-hover;
+  flex-shrink: 0;
+}
+
+.rankingInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.rankingName {
+  font-size: $font-size-md;
+  font-weight: $font-weight-medium;
+  color: $color-text-primary;
+  margin-bottom: 4rpx;
+  @include text-ellipsis;
+}
+
+.rankingDays {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.rankingBarWrap {
+  width: 180rpx;
+  height: 12rpx;
+  background: $color-bg-page;
+  border-radius: $radius-round;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.rankingBar {
+  height: 100%;
+  background: linear-gradient(90deg, $color-primary 0%, $color-primary-light 100%);
+  border-radius: $radius-round;
+}
+
+.ratingAverage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-right: 32rpx;
+  border-right: 1rpx solid $color-divider;
+  min-width: 180rpx;
+}
+
+.ratingScore {
+  font-size: 72rpx;
+  font-weight: $font-weight-bold;
+  color: $color-primary;
+  line-height: 1;
+}
+
+.ratingDistribution {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  padding-left: 32rpx;
+}
+
+.distributionRow {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.distributionStar {
+  font-size: $font-size-xs;
+  color: $color-text-secondary;
+  width: 48rpx;
+  flex-shrink: 0;
+}
+
+.distributionTrack {
+  flex: 1;
+  height: 12rpx;
+  background: $color-bg-page;
+  border-radius: $radius-round;
+  overflow: hidden;
+}
+
+.distributionFill {
+  height: 100%;
+  background: linear-gradient(90deg, $color-primary 0%, $color-primary-light 100%);
+  border-radius: $radius-round;
+  transition: width $transition-base;
+}
+
+.distributionCount {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  width: 48rpx;
+  text-align: right;
+  flex-shrink: 0;
+}
