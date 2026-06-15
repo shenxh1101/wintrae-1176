@@ -559,3 +559,15 @@
   color: $color-text-tertiary;
   padding: 8rpx 0;
 }
+
+.followUpBtn {
+  margin-top: 16rpx;
+  height: 56rpx;
+  padding: 0 24rpx;
+  border-radius: $radius-button;
+  background: $color-bg-tag-orange-bg;
+  color: $color-primary;
+  border: none;
+  font-size: $font-size-xs;
+  line-height: 56rpx;
+}

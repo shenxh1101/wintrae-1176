@@ -3,7 +3,7 @@ import { View, Text, Image, ScrollView, Button } from '@tarojs/components';
 import Taro, { useRouter, useDidShow } from '@tarojs/taro';
 import styles from './index.module.scss';
 import { useAppStore } from '@/store';
-import { AbnormalReport, Message } from '@/types';
+import { AbnormalReport } from '@/types';
 import classnames from 'classnames';
 
 const ReportDetailPage: React.FC = () => {
@@ -11,7 +11,6 @@ const ReportDetailPage: React.FC = () => {
   const reports = useAppStore(s => s.abnormalReports);
   const pets = useAppStore(s => s.pets);
   const updateAbnormalReport = useAppStore(s => s.updateAbnormalReport);
-  const addMessage = useAppStore(s => s.addMessage);
   const initFromStorage = useAppStore(s => s.initFromStorage);
 
   const [report, setReport] = useState<AbnormalReport | null>(null);
@@ -76,33 +75,27 @@ const ReportDetailPage: React.FC = () => {
     Taro.showModal({
       title: '确认处理',
       content: '确认标记此异常已解决？',
+      confirmText: '确认解决',
       success: (res) => {
         if (res.confirm) {
-          updateAbnormalReport(report.id, {
-            status: 'resolved',
-            handler: '店员',
-            resolution: '已处理完成，宠物状态恢复正常',
-            resolvedTime: new Date().toLocaleString('zh-CN')
+          Taro.showModal({
+            title: '处理说明',
+            editable: true,
+            placeholderText: '请输入处理结果说明...',
+            success: (editRes) => {
+              const resolution = editRes.content || '已处理完成，宠物状态恢复正常';
+              updateAbnormalReport(report.id, {
+                status: 'resolved',
+                handler: '店员',
+                resolution,
+                resolvedTime: new Date().toISOString()
+              });
+              Taro.showToast({ title: '已标记为已解决', icon: 'success' });
+              setTimeout(() => {
+                loadReport();
+              }, 500);
+            }
           });
-
-          const msg: Message = {
-            id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-            type: 'abnormal-alert',
-            title: `${report.petName} 异常已解决`,
-            content: `✅ ${report.symptoms.join('、')} — 已处理完成，宠物状态恢复正常`,
-            petId: report.petId,
-            petName: report.petName,
-            time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-            date: new Date().toISOString().split('T')[0],
-            read: false,
-            confirmed: false
-          };
-          addMessage(msg);
-
-          Taro.showToast({ title: '已标记为已解决', icon: 'success' });
-          setTimeout(() => {
-            loadReport();
-          }, 500);
         }
       }
     });

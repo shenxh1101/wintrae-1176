@@ -74,14 +74,25 @@ export const useAppStore = create<AppState>((set, get) => ({
       const stored = Taro.getStorageSync(STORAGE_KEY);
       if (stored && typeof stored === 'object') {
         console.log('[Store] Loaded from storage');
+        const pets = stored.pets || mockPets;
+        const messages = (stored.messages || mockMessages).map((m: Message) => {
+          if (!m.stayKey && m.petId) {
+            const pet = pets.find((p: Pet) => p.id === m.petId);
+            if (pet) {
+              return { ...m, stayKey: `${pet.id}_${pet.checkInDate}` };
+            }
+          }
+          return m;
+        });
         set({
-          pets: stored.pets || mockPets,
+          pets,
           careRecords: stored.careRecords || mockCareRecords,
           abnormalReports: stored.abnormalReports || mockAbnormalReports,
-          messages: stored.messages || mockMessages,
+          messages,
           dailyStats: stored.dailyStats || mockDailyStats,
           staysExpanded: stored.staysExpanded || {}
         });
+        get().saveToStorage();
       } else {
         console.log('[Store] No stored data, using defaults and saving');
         get().saveToStorage();
@@ -117,24 +128,41 @@ export const useAppStore = create<AppState>((set, get) => ({
     const state = get();
     const groupMap = new Map<string, StayGroup>();
 
+    const getStayKeyForPet = (petId: string) => {
+      const pet = state.pets.find(p => p.id === petId);
+      return pet ? `${pet.id}_${pet.checkInDate}` : null;
+    };
+
     state.pets.forEach(pet => {
       const stayKey = `${pet.id}_${pet.checkInDate}`;
-      const petMessages = state.messages.filter(m => m.petId === pet.id && m.stayKey === stayKey);
+      const petMessages = state.messages.filter(m => {
+        if (m.petId !== pet.id) return false;
+        if (m.stayKey && m.stayKey === stayKey) return true;
+        if (!m.stayKey) return true;
+        return false;
+      });
+
       const unreadCount = petMessages.filter(m => !m.read).length;
       const latestTime = petMessages.length > 0
         ? petMessages.reduce((a, b) => new Date(a.time) > new Date(b.time) ? a : b).time
         : pet.checkInDate;
 
       const abnormalCount = state.abnormalReports.filter(
-        r => r.petId === pet.id && new Date(r.reportTime) >= new Date(pet.checkInDate)
+        r => r.petId === pet.id
       ).length;
 
       const careDays = state.careRecords.filter(r => r.petId === pet.id).length;
 
+      const ratingMsg = petMessages.find(m => m.type === 'rating');
+      const ratingLabel = ratingMsg
+        ? (ratingMsg.ratingStatus === 'visited' ? '已回访' : ratingMsg.ratingStatus === 'rated' ? '已评价' : '待评价')
+        : '';
+
       const statusText = pet.status === 'checked-out' ? '已离店' : '入住在住';
-      const summaryText = petMessages.length > 0
+      let summaryText = petMessages.length > 0
         ? `${statusText} · ${careDays}天记录 · ${abnormalCount}条异常`
         : `${statusText} · 暂无动态`;
+      if (ratingLabel) summaryText += ` · ${ratingLabel}`;
 
       groupMap.set(stayKey, {
         stayKey,

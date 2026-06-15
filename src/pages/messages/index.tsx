@@ -339,6 +339,53 @@ const MessagesPage: React.FC = () => {
     );
   };
 
+  const handleAddFollowUpFromMsg = (e: React.MouseEvent, ratingMsgId: string) => {
+    e.stopPropagation();
+    Taro.showActionSheet({
+      itemList: ['📞 电话回访', '🏠 到店回访', '💰 补偿处理', '📝 其他'],
+      success: (res) => {
+        const types: Array<'phone' | 'onsite' | 'compensation' | 'other'> = ['phone', 'onsite', 'compensation', 'other'];
+        const typeLabels = ['电话回访', '到店回访', '补偿处理', '其他'];
+        const selectedType = types[res.tapIndex];
+
+        Taro.showModal({
+          title: `${typeLabels[res.tapIndex]}说明`,
+          editable: true,
+          placeholderText: '请输入回访/处理内容...',
+          success: (contentRes) => {
+            const content = contentRes.content || '已处理';
+            if (selectedType === 'compensation') {
+              Taro.showModal({
+                title: '补偿金额',
+                editable: true,
+                placeholderText: '如：50',
+                success: (amountRes) => {
+                  const amount = parseFloat(amountRes.content) || 0;
+                  addFollowUp(ratingMsgId, {
+                    type: selectedType,
+                    handler: '店员',
+                    content,
+                    time: new Date().toISOString(),
+                    amount
+                  });
+                  Taro.showToast({ title: '回访已登记', icon: 'success' });
+                }
+              });
+            } else {
+              addFollowUp(ratingMsgId, {
+                type: selectedType,
+                handler: '店员',
+                content,
+                time: new Date().toISOString()
+              });
+              Taro.showToast({ title: '回访已登记', icon: 'success' });
+            }
+          }
+        });
+      }
+    });
+  };
+
   const renderRating = (message: Message) => {
     const hasRated = message.rating && message.rating > 0;
     const input = getRatingInput(message.id);
@@ -370,9 +417,16 @@ const MessagesPage: React.FC = () => {
               <Text className={styles.ratingCommentDisplay}>「{message.ratingComment}」</Text>
             )}
             <Text className={classnames(styles.statusTag, styles.statusConfirmed)}>
-              已评价
+              {message.ratingStatus === 'visited' ? '已回访' : '已评价'}
             </Text>
             {renderFollowUps(message.followUps)}
+            <Button
+              className={classnames(styles.actionButton, styles.primaryBtn)}
+              style={{ marginTop: '16rpx' }}
+              onClick={(e) => handleAddFollowUpFromMsg(e, message.id)}
+            >
+              📞 登记回访
+            </Button>
           </View>
         ) : (
           <View className={styles.ratingForm} onClick={(e) => e.stopPropagation()}>

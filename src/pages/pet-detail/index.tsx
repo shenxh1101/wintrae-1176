@@ -26,6 +26,9 @@ const PetDetailPage: React.FC = () => {
   const checkoutPet = useAppStore(s => s.checkoutPet);
   const initFromStorage = useAppStore(s => s.initFromStorage);
   const updateCareRecord = useAppStore(s => s.updateCareRecord);
+  const addCareMessage = useAppStore(s => s.addCareMessage);
+  const addCarePhoto = useAppStore(s => s.addCarePhoto);
+  const addFollowUp = useAppStore(s => s.addFollowUp);
   const [pet, setPet] = useState<Pet | null>(null);
   const [currentDate, setCurrentDate] = useState<string>('');
   const [refreshing, setRefreshing] = useState(false);
@@ -245,31 +248,230 @@ const PetDetailPage: React.FC = () => {
   };
 
   const handleSupplement = () => {
-    Taro.showModal({
-      title: '补录记录',
-      content: '补录一条喂食记录作为示例？',
-      confirmText: '确定补录',
+    if (!pet) return;
+    Taro.showActionSheet({
+      itemList: ['🍚 补录喂食', '💧 补录饮水', '🐾 补录遛放', '💩 补录排便', '📷 补录照片', '📝 补录说明'],
       success: (res) => {
-        if (res.confirm && pet) {
-          updateCareRecord(pet.id, currentDate, (record) => {
-            const now = new Date();
-            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-            return {
-              ...record,
-              feeding: [
-                ...record.feeding,
-                {
-                  id: `f_supp_${Date.now()}`,
-                  time: timeStr,
-                  foodType: '补录-狗粮',
-                  amount: '100g',
-                  completed: true
-                }
-              ]
-            };
-          });
-          Taro.showToast({ title: '补录成功', icon: 'success' });
+        switch (res.tapIndex) {
+          case 0:
+            supplementFeeding();
+            break;
+          case 1:
+            supplementWatering();
+            break;
+          case 2:
+            supplementWalking();
+            break;
+          case 3:
+            supplementDefecation();
+            break;
+          case 4:
+            supplementPhoto();
+            break;
+          case 5:
+            supplementNote();
+            break;
         }
+      }
+    });
+  };
+
+  const getSupplementTime = () => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  };
+
+  const supplementFeeding = () => {
+    if (!pet) return;
+    Taro.showActionSheet({
+      itemList: ['狗粮', '猫粮', '罐头', '零食', '其他'],
+      success: (foodRes) => {
+        const foodTypes = ['狗粮', '猫粮', '罐头', '零食', '其他'];
+        const foodType = foodTypes[foodRes.tapIndex];
+        Taro.showModal({
+          title: '喂食量',
+          editable: true,
+          placeholderText: '如：100g',
+          success: (amountRes) => {
+            const amount = amountRes.content || '适量';
+            const time = getSupplementTime();
+            updateCareRecord(pet.id, currentDate, (record) => ({
+              ...record,
+              feeding: [...record.feeding, {
+                id: `f_supp_${Date.now()}`,
+                time,
+                foodType: `补录-${foodType}`,
+                amount,
+                completed: true
+              }]
+            }));
+            addCareMessage(pet.id, pet.name, {
+              type: 'feeding',
+              time,
+              desc: `补录喂食：${foodType} ${amount}`
+            }, currentDate);
+            Taro.showToast({ title: '补录成功', icon: 'success' });
+          }
+        });
+      }
+    });
+  };
+
+  const supplementWatering = () => {
+    if (!pet) return;
+    const time = getSupplementTime();
+    updateCareRecord(pet.id, currentDate, (record) => ({
+      ...record,
+      watering: [...record.watering, {
+        id: `w_supp_${Date.now()}`,
+        time,
+        amount: '200ml',
+        completed: true
+      }]
+    }));
+    addCareMessage(pet.id, pet.name, {
+      type: 'watering',
+      time,
+      desc: '补录饮水：200ml'
+    }, currentDate);
+    Taro.showToast({ title: '补录成功', icon: 'success' });
+  };
+
+  const supplementWalking = () => {
+    if (!pet) return;
+    Taro.showModal({
+      title: '遛放时长（分钟）',
+      editable: true,
+      placeholderText: '如：15',
+      success: (durRes) => {
+        const duration = parseInt(durRes.content) || 15;
+        const time = getSupplementTime();
+        updateCareRecord(pet.id, currentDate, (record) => ({
+          ...record,
+          walking: [...record.walking, {
+            id: `wk_supp_${Date.now()}`,
+            scheduledTime: time,
+            startTime: time,
+            endTime: time,
+            duration,
+            status: 'completed' as const
+          }]
+        }));
+        addCareMessage(pet.id, pet.name, {
+          type: 'walking',
+          time,
+          desc: `补录遛放：${duration}分钟`
+        }, currentDate);
+        Taro.showToast({ title: '补录成功', icon: 'success' });
+      }
+    });
+  };
+
+  const supplementDefecation = () => {
+    if (!pet) return;
+    Taro.showActionSheet({
+      itemList: ['正常', '偏软', '腹泻', '便秘'],
+      success: (defRes) => {
+        const types: Array<'normal' | 'soft' | 'diarrhea' | 'constipation'> = ['normal', 'soft', 'diarrhea', 'constipation'];
+        const typeLabels = ['正常', '偏软', '腹泻', '便秘'];
+        const time = getSupplementTime();
+        updateCareRecord(pet.id, currentDate, (record) => ({
+          ...record,
+          defecation: [...record.defecation, {
+            id: `d_supp_${Date.now()}`,
+            time,
+            type: types[defRes.tapIndex]
+          }]
+        }));
+        addCareMessage(pet.id, pet.name, {
+          type: 'defecation',
+          time,
+          desc: `补录排便：${typeLabels[defRes.tapIndex]}`
+        }, currentDate);
+        Taro.showToast({ title: '补录成功', icon: 'success' });
+      }
+    });
+  };
+
+  const supplementPhoto = () => {
+    if (!pet) return;
+    const seeds = ['care', 'supp', 'record', 'pet', 'daily'];
+    const seed = seeds[Math.floor(Math.random() * seeds.length)] + Date.now();
+    const photoUrl = `https://picsum.photos/seed/${seed}/400/400`;
+    addCarePhoto(pet.id, currentDate, photoUrl);
+    addCareMessage(pet.id, pet.name, {
+      type: 'photo',
+      time: getSupplementTime(),
+      desc: '补录照片',
+      photoUrl
+    }, currentDate);
+    Taro.showToast({ title: '照片已补录', icon: 'success' });
+  };
+
+  const supplementNote = () => {
+    if (!pet) return;
+    Taro.showModal({
+      title: '补录说明',
+      editable: true,
+      placeholderText: '请输入补充说明...',
+      success: (noteRes) => {
+        if (noteRes.content) {
+          addCareMessage(pet.id, pet.name, {
+            type: 'feeding',
+            time: getSupplementTime(),
+            desc: `📝 补录说明：${noteRes.content}`
+          }, currentDate);
+          Taro.showToast({ title: '说明已补录', icon: 'success' });
+        }
+      }
+    });
+  };
+
+  const handleAddFollowUp = () => {
+    if (!pet || !petRating) return;
+    Taro.showActionSheet({
+      itemList: ['📞 电话回访', '🏠 到店回访', '💰 补偿处理', '📝 其他'],
+      success: (res) => {
+        const types: Array<'phone' | 'onsite' | 'compensation' | 'other'> = ['phone', 'onsite', 'compensation', 'other'];
+        const typeLabels = ['电话回访', '到店回访', '补偿处理', '其他'];
+        const selectedType = types[res.tapIndex];
+
+        Taro.showModal({
+          title: `${typeLabels[res.tapIndex]}说明`,
+          editable: true,
+          placeholderText: '请输入回访/处理内容...',
+          success: (contentRes) => {
+            const content = contentRes.content || '已处理';
+            if (selectedType === 'compensation') {
+              Taro.showModal({
+                title: '补偿金额',
+                editable: true,
+                placeholderText: '如：50',
+                success: (amountRes) => {
+                  const amount = parseFloat(amountRes.content) || 0;
+                  addFollowUp(petRating.id, {
+                    type: selectedType,
+                    handler: '店员',
+                    content,
+                    time: new Date().toISOString(),
+                    amount
+                  });
+                  Taro.showToast({ title: '回访已登记', icon: 'success' });
+                  loadPet();
+                }
+              });
+            } else {
+              addFollowUp(petRating.id, {
+                type: selectedType,
+                handler: '店员',
+                content,
+                time: new Date().toISOString()
+              });
+              Taro.showToast({ title: '回访已登记', icon: 'success' });
+              loadPet();
+            }
+          }
+        });
       }
     });
   };
@@ -441,7 +643,7 @@ const PetDetailPage: React.FC = () => {
               style={{ marginTop: '20rpx' }}
               onClick={handleSupplement}
             >
-              补录记录
+              📝 补录记录
             </Button>
           </View>
         ) : (
@@ -481,6 +683,12 @@ const PetDetailPage: React.FC = () => {
                 </View>
               ))
             )}
+            <Button
+              className={styles.supplementBtn}
+              onClick={handleSupplement}
+            >
+              📝 补录当天记录
+            </Button>
           </View>
         )}
       </View>
@@ -573,6 +781,14 @@ const PetDetailPage: React.FC = () => {
               ))}
             </View>
           )}
+
+          <Button
+            className={styles.supplementBtn}
+            style={{ marginTop: '24rpx' }}
+            onClick={handleAddFollowUp}
+          >
+            📞 登记回访
+          </Button>
         </View>
       )}
 

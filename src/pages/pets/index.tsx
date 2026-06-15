@@ -25,6 +25,7 @@ const PetsPage: React.FC = () => {
   const messages = useAppStore(s => s.messages);
   const addPet = useAppStore(s => s.addPet);
   const checkoutPet = useAppStore(s => s.checkoutPet);
+  const addFollowUp = useAppStore(s => s.addFollowUp);
   const initFromStorage = useAppStore(s => s.initFromStorage);
 
   const [refreshing, setRefreshing] = useState(false);
@@ -89,6 +90,52 @@ const PetsPage: React.FC = () => {
           checkoutPet(pet.id);
           Taro.showToast({ title: '已办理离店', icon: 'success' });
         }
+      }
+    });
+  };
+
+  const handleAddFollowUpFromPets = (ratingMsgId: string) => {
+    Taro.showActionSheet({
+      itemList: ['📞 电话回访', '🏠 到店回访', '💰 补偿处理', '📝 其他'],
+      success: (res) => {
+        const types: Array<'phone' | 'onsite' | 'compensation' | 'other'> = ['phone', 'onsite', 'compensation', 'other'];
+        const typeLabels = ['电话回访', '到店回访', '补偿处理', '其他'];
+        const selectedType = types[res.tapIndex];
+
+        Taro.showModal({
+          title: `${typeLabels[res.tapIndex]}说明`,
+          editable: true,
+          placeholderText: '请输入回访/处理内容...',
+          success: (contentRes) => {
+            const content = contentRes.content || '已处理';
+            if (selectedType === 'compensation') {
+              Taro.showModal({
+                title: '补偿金额',
+                editable: true,
+                placeholderText: '如：50',
+                success: (amountRes) => {
+                  const amount = parseFloat(amountRes.content) || 0;
+                  addFollowUp(ratingMsgId, {
+                    type: selectedType,
+                    handler: '店员',
+                    content,
+                    time: new Date().toISOString(),
+                    amount
+                  });
+                  Taro.showToast({ title: '回访已登记', icon: 'success' });
+                }
+              });
+            } else {
+              addFollowUp(ratingMsgId, {
+                type: selectedType,
+                handler: '店员',
+                content,
+                time: new Date().toISOString()
+              });
+              Taro.showToast({ title: '回访已登记', icon: 'success' });
+            }
+          }
+        });
       }
     });
   };
@@ -360,6 +407,15 @@ const PetsPage: React.FC = () => {
                         {hasFollowUps && (
                           <Text className={styles.followUpHint}>📞 已回访 {ratingMsg!.followUps!.length} 次</Text>
                         )}
+                        <Button
+                          className={styles.followUpBtn}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAddFollowUpFromPets(ratingMsg!.id);
+                          }}
+                        >
+                          📞 登记回访
+                        </Button>
                       </View>
                     ) : (
                       <Text className={styles.ratingPendingHint}>主人尚未评价，离店后可跟进回访</Text>
