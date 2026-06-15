@@ -1,23 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, Image, ScrollView, Button } from '@tarojs/components';
 import Taro, { useRouter, useDidShow } from '@tarojs/taro';
 import styles from './index.module.scss';
 import { useAppStore } from '@/store';
-import { Pet, CareRecord, AbnormalReport } from '@/types';
+import { Pet, CareRecord, AbnormalReport, FollowUpRecord } from '@/types';
 import classnames from 'classnames';
 
-type DetailTab = 'info' | 'timeline' | 'abnormal';
+interface TimelineEvent {
+  id: string;
+  time: string;
+  icon: string;
+  type: string;
+  content: string;
+  category: 'care' | 'photo' | 'abnormal' | 'abnormal-resolved';
+  photoUrl?: string;
+  status?: string;
+}
 
 const PetDetailPage: React.FC = () => {
   const router = useRouter();
   const pets = useAppStore(s => s.pets);
-  const careRecords = useAppStore(s => s.careRecords);
+  const getCareRecordsByPet = useAppStore(s => s.getCareRecordsByPet);
   const abnormalReports = useAppStore(s => s.abnormalReports);
   const messages = useAppStore(s => s.messages);
   const checkoutPet = useAppStore(s => s.checkoutPet);
   const initFromStorage = useAppStore(s => s.initFromStorage);
+  const updateCareRecord = useAppStore(s => s.updateCareRecord);
   const [pet, setPet] = useState<Pet | null>(null);
-  const [activeTab, setActiveTab] = useState<DetailTab>('timeline');
+  const [currentDate, setCurrentDate] = useState<string>('');
   const [refreshing, setRefreshing] = useState(false);
 
   const loadPet = () => {
@@ -37,30 +47,235 @@ const PetDetailPage: React.FC = () => {
     loadPet();
   });
 
-  if (!pet) {
-    return (
-      <ScrollView className={styles.container}>
-        <View style={{ textAlign: 'center', padding: '80rpx 0', color: '#86909C' }}>
-          加载中...
-        </View>
-      </ScrollView>
-    );
-  }
+  const dateRange = useMemo(() => {
+    if (!pet) return { start: '', end: '', allDates: [] as string[] };
+    const startDate = pet.checkInDate;
+    const endDate = pet.status === 'checked-out'
+      ? (pet.actualCheckOutDate || pet.checkOutDate)
+      : new Date().toISOString().split('T')[0];
 
-  const petCareRecords = careRecords
-    .filter(r => r.petId === pet.id)
-    .sort((a, b) => b.date.localeCompare(a.date));
+    const allDates: string[] = [];
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const cur = new Date(start);
+    while (cur <= end) {
+      allDates.push(cur.toISOString().split('T')[0]);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return { start: startDate, end: endDate, allDates };
+  }, [pet]);
 
-  const petReports = abnormalReports
-    .filter(r => r.petId === pet.id)
-    .sort((a, b) => b.reportTime.localeCompare(a.reportTime));
+  useEffect(() => {
+    if (pet && !currentDate) {
+      setCurrentDate(dateRange.end || pet.checkInDate);
+    }
+  }, [pet, dateRange.end, currentDate]);
 
-  const petRating = pet.ratingId
-    ? messages.find(m => m.id === pet.ratingId && m.type === 'rating')
-    : null;
+  const petCareRecords = useMemo(() => {
+    if (!pet) return [];
+    return getCareRecordsByPet(pet.id);
+  }, [pet, getCareRecordsByPet]);
+
+  const currentRecord = useMemo(() => {
+    if (!petCareRecords.length || !currentDate) return null;
+    return petCareRecords.find(r => r.date === currentDate) || null;
+  }, [petCareRecords, currentDate]);
+
+  const dayAbnormalReports = useMemo(() => {
+    if (!pet || !currentDate) return [] as AbnormalReport[];
+    return abnormalReports
+      .filter(r => r.petId === pet.id && r.reportTime.startsWith(currentDate))
+      .sort((a, b) => b.reportTime.localeCompare(a.reportTime));
+  }, [pet, currentDate, abnormalReports]);
+
+  const petRating = useMemo(() => {
+    if (!pet || !pet.ratingId) return null;
+    return messages.find(m => m.id === pet.ratingId && m.type === 'rating') || null;
+  }, [pet, messages]);
+
+  const timelineEvents = useMemo((): TimelineEvent[] => {
+    const events: TimelineEvent[] = [];
+
+    if (currentRecord) {
+      currentRecord.feeding.filter(f => f.completed).forEach(f => {
+        events.push({
+          id: `f_${f.id}`,
+          time: f.time,
+          icon: '🍚',
+          type: '喂食',
+          content: `${f.foodType} · ${f.amount}`,
+          category: 'care'
+        });
+      });
+      currentRecord.watering.filter(w => w.completed).forEach(w => {
+        events.push({
+          id: `w_${w.id}`,
+          time: w.time,
+          icon: '💧',
+          type: '饮水',
+          content: `补充 ${w.amount}`,
+          category: 'care'
+        });
+      });
+      currentRecord.walking.filter(w => w.status === 'completed').forEach(w => {
+        events.push({
+          id: `wk_${w.id}`,
+          time: w.endTime || w.startTime || '',
+          icon: '🐾',
+          type: '遛放',
+          content: `时长 ${w.duration || 0}分钟`,
+          category: 'care'
+        });
+      });
+      currentRecord.defecation.forEach(d => {
+        const typeMap: Record<string, string> = {
+          normal: '正常', soft: '偏软', diarrhea: '腹泻', constipation: '便秘'
+        };
+        events.push({
+          id: `d_${d.id}`,
+          time: d.time,
+          icon: '💩',
+          type: '排便',
+          content: typeMap[d.type] || d.type,
+          category: 'care'
+        });
+      });
+      if (currentRecord.grooming && currentRecord.grooming.completed) {
+        events.push({
+          id: `g_${currentRecord.grooming.id}`,
+          time: currentRecord.grooming.completedTime || currentRecord.grooming.scheduledTime,
+          icon: '✂️',
+          type: '洗护',
+          content: currentRecord.grooming.type,
+          category: 'care'
+        });
+      }
+      currentRecord.medication.filter(m => m.completed).forEach(m => {
+        events.push({
+          id: `m_${m.id}`,
+          time: m.completedTime || m.scheduledTime,
+          icon: '💊',
+          type: '用药',
+          content: `${m.name} · ${m.dosage}`,
+          category: 'care'
+        });
+      });
+      currentRecord.photos.forEach((p, idx) => {
+        events.push({
+          id: `ph_${idx}_${currentRecord.id}`,
+          time: '--:--',
+          icon: '📷',
+          type: '照片',
+          content: '上传照片',
+          category: 'photo',
+          photoUrl: p
+        });
+      });
+    }
+
+    dayAbnormalReports.forEach(report => {
+      const timeStr = report.reportTime.split(' ')[1] || '--:--';
+      events.push({
+        id: `abn_${report.id}`,
+        time: timeStr,
+        icon: '⚠️',
+        type: '异常上报',
+        content: report.symptoms.join('、'),
+        category: 'abnormal',
+        status: report.status
+      });
+      if (report.status === 'resolved' && report.resolvedTime?.startsWith(currentDate)) {
+        const resolvedTimeStr = report.resolvedTime.split(' ')[1] || '--:--';
+        events.push({
+          id: `abn_res_${report.id}`,
+          time: resolvedTimeStr,
+          icon: '✅',
+          type: '异常已处理',
+          content: report.resolution || '已处理完成',
+          category: 'abnormal-resolved',
+          status: 'resolved'
+        });
+      }
+    });
+
+    return events.sort((a, b) => {
+      const timeA = a.time || '00:00';
+      const timeB = b.time || '00:00';
+      return timeB.localeCompare(timeA);
+    });
+  }, [currentRecord, dayAbnormalReports, currentDate]);
+
+  const dayStats = useMemo(() => {
+    const feeding = currentRecord?.feeding.filter(f => f.completed).length || 0;
+    const watering = currentRecord?.watering.filter(w => w.completed).length || 0;
+    const walking = currentRecord?.walking.filter(w => w.status === 'completed').length || 0;
+    const defecation = currentRecord?.defecation.length || 0;
+    const photos = currentRecord?.photos.length || 0;
+    const abnormal = dayAbnormalReports.length;
+    return { feeding, watering, walking, defecation, photos, abnormal };
+  }, [currentRecord, dayAbnormalReports]);
+
+  const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const weekDay = weekDays[date.getDay()];
+    return `${month}月${day}日 ${weekDay}`;
+  };
+
+  const isFirstDay = currentDate === dateRange.start;
+  const isLastDay = currentDate === dateRange.end;
+
+  const handlePrevDay = () => {
+    if (isFirstDay) return;
+    const idx = dateRange.allDates.indexOf(currentDate);
+    if (idx > 0) {
+      setCurrentDate(dateRange.allDates[idx - 1]);
+    }
+  };
+
+  const handleNextDay = () => {
+    if (isLastDay) return;
+    const idx = dateRange.allDates.indexOf(currentDate);
+    if (idx < dateRange.allDates.length - 1) {
+      setCurrentDate(dateRange.allDates[idx + 1]);
+    }
+  };
+
+  const handleSupplement = () => {
+    Taro.showModal({
+      title: '补录记录',
+      content: '补录一条喂食记录作为示例？',
+      confirmText: '确定补录',
+      success: (res) => {
+        if (res.confirm && pet) {
+          updateCareRecord(pet.id, currentDate, (record) => {
+            const now = new Date();
+            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            return {
+              ...record,
+              feeding: [
+                ...record.feeding,
+                {
+                  id: `f_supp_${Date.now()}`,
+                  time: timeStr,
+                  foodType: '补录-狗粮',
+                  amount: '100g',
+                  completed: true
+                }
+              ]
+            };
+          });
+          Taro.showToast({ title: '补录成功', icon: 'success' });
+        }
+      }
+    });
+  };
 
   const handleCallOwner = () => {
-    if (pet.ownerPhone) {
+    if (pet?.ownerPhone) {
       Taro.makePhoneCall({ phoneNumber: pet.ownerPhone }).catch(() => {});
     } else {
       Taro.showToast({ title: '暂无联系电话', icon: 'none' });
@@ -68,7 +283,7 @@ const PetDetailPage: React.FC = () => {
   };
 
   const handleGoCare = () => {
-    if (pet.status !== 'checked-in') {
+    if (pet?.status !== 'checked-in') {
       Taro.showToast({ title: '宠物已离店', icon: 'none' });
       return;
     }
@@ -76,6 +291,7 @@ const PetDetailPage: React.FC = () => {
   };
 
   const handleCheckout = () => {
+    if (!pet) return;
     Taro.showModal({
       title: '确认离店',
       content: `确定要为 ${pet.name} 办理离店吗？`,
@@ -105,86 +321,36 @@ const PetDetailPage: React.FC = () => {
     ));
   };
 
-  interface TimelineEvent {
-    id: string;
-    time: string;
-    icon: string;
-    type: string;
-    content: string;
-    photoUrl?: string;
+  const getRatingStatusLabel = (status?: string) => {
+    switch (status) {
+      case 'pending': return '待评价';
+      case 'rated': return '已评价';
+      case 'visited': return '已回访';
+      default: return '待评价';
+    }
+  };
+
+  const getFollowUpTypeLabel = (type: string) => {
+    switch (type) {
+      case 'phone': return '电话回访';
+      case 'onsite': return '到店回访';
+      case 'compensation': return '补偿';
+      case 'other': return '其他';
+      default: return type;
+    }
+  };
+
+  if (!pet) {
+    return (
+      <ScrollView className={styles.container}>
+        <View style={{ textAlign: 'center', padding: '80rpx 0', color: '#86909C' }}>
+          加载中...
+        </View>
+      </ScrollView>
+    );
   }
 
-  const getTimelineForRecord = (record: CareRecord): TimelineEvent[] => {
-    const events: TimelineEvent[] = [];
-    record.feeding.filter(f => f.completed).forEach(f => {
-      events.push({
-        id: `f_${f.id}`,
-        time: f.time,
-        icon: '🍚',
-        type: '喂食',
-        content: `${f.foodType} · ${f.amount}`
-      });
-    });
-    record.watering.filter(w => w.completed).forEach(w => {
-      events.push({
-        id: `w_${w.id}`,
-        time: w.time,
-        icon: '💧',
-        type: '饮水',
-        content: `补充 ${w.amount}`
-      });
-    });
-    record.walking.filter(w => w.status === 'completed').forEach(w => {
-      events.push({
-        id: `wk_${w.id}`,
-        time: w.endTime || w.startTime || '',
-        icon: '🐾',
-        type: '遛放',
-        content: `时长 ${w.duration || 0} 分钟`
-      });
-    });
-    record.defecation.forEach(d => {
-      const typeMap: Record<string, string> = {
-        normal: '形态正常', soft: '偏软', diarrhea: '腹泻', constipation: '便秘'
-      };
-      events.push({
-        id: `d_${d.id}`,
-        time: d.time,
-        icon: '💩',
-        type: '排便',
-        content: typeMap[d.type] || d.type
-      });
-    });
-    if (record.grooming && record.grooming.completed) {
-      events.push({
-        id: `g_${record.grooming.id}`,
-        time: record.grooming.completedTime || record.grooming.scheduledTime,
-        icon: '✂️',
-        type: '洗护',
-        content: record.grooming.type
-      });
-    }
-    record.medication.filter(m => m.completed).forEach(m => {
-      events.push({
-        id: `m_${m.id}`,
-        time: m.completedTime || m.scheduledTime,
-        icon: '💊',
-        type: '用药',
-        content: `${m.name} · ${m.dosage}`
-      });
-    });
-    record.photos.forEach((p, idx) => {
-      events.push({
-        id: `ph_${idx}_${Date.now()}`,
-        time: '--:--',
-        icon: '📷',
-        type: '照片',
-        content: '上传照片',
-        photoUrl: p
-      });
-    });
-    return events.sort((a, b) => (b.time || '').localeCompare(a.time || ''));
-  };
+  const dayPhotos = currentRecord?.photos || [];
 
   return (
     <ScrollView className={styles.container}>
@@ -224,219 +390,188 @@ const PetDetailPage: React.FC = () => {
             </Text>
           </View>
         </View>
-        {petRating && petRating.rating && petRating.rating > 0 && (
-          <View className={styles.ratingSummary}>
-            <Text className={styles.ratingSummaryLabel}>服务评价</Text>
-            <View className={styles.ratingSummaryRow}>
-              {renderRatingStars(petRating.rating, true)}
-              <Text className={styles.ratingSummaryScore}>{petRating.rating}.0</Text>
-            </View>
-            {petRating.ratingComment && (
-              <Text className={styles.ratingSummaryComment}>"{petRating.ratingComment}"</Text>
+      </View>
+
+      <View className={styles.dateNav}>
+        <View
+          className={classnames(styles.dateNavBtn, isFirstDay ? styles.disabled : '')}
+          onClick={handlePrevDay}
+        >
+          <Text>‹ 上一天</Text>
+        </View>
+        <View className={styles.dateNavCurrent}>
+          <Text>{formatDateDisplay(currentDate)}</Text>
+        </View>
+        <View
+          className={classnames(styles.dateNavBtn, isLastDay ? styles.disabled : '')}
+          onClick={handleNextDay}
+        >
+          <Text>下一天 ›</Text>
+        </View>
+      </View>
+
+      <View className={styles.timelineDay}>
+        <View className={styles.dayHeader}>
+          <View className={styles.dayDate}>
+            <Text className={styles.dayDateText}>{currentDate}</Text>
+          </View>
+          <View className={styles.dayStats}>
+            <Text className={styles.dayStat}>🍚{dayStats.feeding}</Text>
+            <Text className={styles.dayStat}>💧{dayStats.watering}</Text>
+            <Text className={styles.dayStat}>🐾{dayStats.walking}</Text>
+            <Text className={styles.dayStat}>💩{dayStats.defecation}</Text>
+            <Text className={styles.dayStat}>📷{dayStats.photos}</Text>
+            <Text className={styles.dayStat}>⚠️{dayStats.abnormal}</Text>
+          </View>
+        </View>
+
+        {dayPhotos.length > 0 && (
+          <View className={styles.dayPhotoRow}>
+            {dayPhotos.slice(0, 6).map((p, idx) => (
+              <Image key={idx} src={p} mode="aspectFill" className={styles.dayPhoto} />
+            ))}
+          </View>
+        )}
+
+        {!currentRecord && timelineEvents.length === 0 ? (
+          <View className={styles.dayEmptyEvents}>
+            <Text className={styles.dayEmptyText}>当日暂无照护记录</Text>
+            <Button
+              className={classnames(styles.actionBtn, styles.primaryBtn)}
+              style={{ marginTop: '20rpx' }}
+              onClick={handleSupplement}
+            >
+              补录记录
+            </Button>
+          </View>
+        ) : (
+          <View className={styles.eventsList}>
+            {timelineEvents.length === 0 ? (
+              <View className={styles.dayEmptyEvents}>
+                <Text className={styles.dayEmptyText}>当日暂无照护打卡</Text>
+              </View>
+            ) : (
+              timelineEvents.map(ev => (
+                <View key={ev.id} className={styles.eventItem}>
+                  <View className={styles.eventIcon}>{ev.icon}</View>
+                  <View className={styles.eventTime}>
+                    <Text className={styles.eventTimeText}>{ev.time}</Text>
+                  </View>
+                  <View className={styles.eventContent}>
+                    <Text className={styles.eventType}>{ev.type}</Text>
+                    <Text className={styles.eventDesc}>{ev.content}</Text>
+                    {ev.photoUrl && (
+                      <Image src={ev.photoUrl} mode="aspectFill" className={styles.eventPhoto} />
+                    )}
+                    {ev.category === 'abnormal' && ev.status && (
+                      <View style={{ marginTop: '8rpx' }}>
+                        <Text className={classnames(
+                          styles.reportStatus,
+                          ev.status === 'resolved' && styles.statusResolved,
+                          ev.status === 'processing' && styles.statusProcessing,
+                          ev.status === 'pending' && styles.statusPending
+                        )}>
+                          {ev.status === 'pending' && '待处理'}
+                          {ev.status === 'processing' && '处理中'}
+                          {ev.status === 'resolved' && '已解决'}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              ))
             )}
           </View>
         )}
       </View>
 
-      <View className={styles.tabBar}>
-        {[
-          { key: 'info' as DetailTab, label: '📄 档案信息' },
-          { key: 'timeline' as DetailTab, label: `📅 照护时间线 (${petCareRecords.length}天)` },
-          { key: 'abnormal' as DetailTab, label: `⚠️ 异常记录 (${petReports.length})` }
-        ].map(tab => (
-          <View
-            key={tab.key}
-            className={classnames(styles.tabItem, activeTab === tab.key ? styles.tabActive : '')}
-            onClick={() => setActiveTab(tab.key)}
-          >
-            <Text className={styles.tabText}>{tab.label}</Text>
-          </View>
-        ))}
-      </View>
+      {petRating && (
+        <View className={styles.ratingFollowUp}>
+          <Text className={styles.sectionTitle}>服务评价与回访</Text>
 
-      {activeTab === 'info' && (
-        <>
-          <View className={styles.infoSection}>
-            <Text className={styles.sectionTitle}>基本信息</Text>
-            <View className={styles.infoGrid}>
-              <View className={styles.infoItem}>
-                <Text className={styles.infoLabel}>年龄</Text>
-                <Text className={styles.infoValue}>{pet.age}</Text>
-              </View>
-              <View className={styles.infoItem}>
-                <Text className={styles.infoLabel}>体重</Text>
-                <Text className={styles.infoValue}>{pet.weight}</Text>
-              </View>
-              <View className={styles.infoItem}>
-                <Text className={styles.infoLabel}>房间号</Text>
-                <Text className={styles.infoValue}>{pet.roomNumber}</Text>
-              </View>
-              <View className={styles.infoItem}>
-                <Text className={styles.infoLabel}>疫苗记录</Text>
-                <Text className={styles.infoValue}>{pet.vaccineInfo.length} 条</Text>
-              </View>
+          <View style={{ marginBottom: '20rpx' }}>
+            <Text className={classnames(
+              styles.reportStatus,
+              petRating.ratingStatus === 'pending' && styles.statusProcessing,
+              petRating.ratingStatus === 'rated' && styles.statusResolved,
+              petRating.ratingStatus === 'visited' && styles.statusPending
+            )}>
+              {getRatingStatusLabel(petRating.ratingStatus)}
+            </Text>
+          </View>
+
+          {petRating.rating !== undefined && petRating.rating > 0 && (
+            <View style={{ display: 'flex', alignItems: 'center', gap: '12rpx', marginBottom: '16rpx' }}>
+              {renderRatingStars(petRating.rating, true)}
+              <Text style={{ fontSize: '28rpx', fontWeight: 'bold', color: '#FFB800' }}>
+                {petRating.rating}.0
+              </Text>
             </View>
-          </View>
+          )}
 
-          <View className={styles.infoSection}>
-            <Text className={styles.sectionTitle}>主人信息</Text>
-            <View className={styles.infoGrid}>
-              <View className={styles.infoItem}>
-                <Text className={styles.infoLabel}>姓名</Text>
-                <Text className={styles.infoValue}>{pet.ownerName}</Text>
-              </View>
-              <View className={styles.infoItem}>
-                <Text className={styles.infoLabel}>联系电话</Text>
-                <Text className={styles.infoValue}>{pet.ownerPhone}</Text>
-              </View>
+          {petRating.ratingComment && (
+            <View style={{
+              padding: '20rpx',
+              background: '#F7F8FA',
+              borderRadius: '12rpx',
+              marginBottom: '24rpx'
+            }}>
+              <Text style={{ fontSize: '26rpx', color: '#4E5969', lineHeight: 1.6 }}>
+                "{petRating.ratingComment}"
+              </Text>
             </View>
-          </View>
+          )}
 
-          <View className={styles.infoSection}>
-            <Text className={styles.sectionTitle}>疫苗信息</Text>
-            {pet.vaccineInfo.length > 0 ? (
-              <View className={styles.vaccineList}>
-                {pet.vaccineInfo.map(vaccine => (
-                  <View key={vaccine.id} className={styles.vaccineItem}>
-                    <View className={styles.vaccineInfoBox}>
-                      <Text className={styles.vaccineName}>💉 {vaccine.name}</Text>
-                      <Text className={styles.vaccineDate}>
-                        接种日期：{vaccine.date}
-                        {vaccine.nextDate && ` · 下次：${vaccine.nextDate}`}
-                      </Text>
-                    </View>
-                    <Text className={classnames(styles.vaccineStatus)}>
-                      有效
+          {petRating.followUps && petRating.followUps.length > 0 && (
+            <View>
+              <Text style={{
+                fontSize: '28rpx',
+                fontWeight: '600',
+                color: '#1D2129',
+                marginBottom: '16rpx',
+                display: 'block'
+              }}>
+                回访记录
+              </Text>
+              {petRating.followUps.map((fu: FollowUpRecord) => (
+                <View key={fu.id} className={styles.followUpItem}>
+                  <View className={styles.followUpHeader}>
+                    <Text style={{
+                      fontSize: '24rpx',
+                      fontWeight: '600',
+                      color: '#165DFF',
+                      background: '#E8F3FF',
+                      padding: '4rpx 12rpx',
+                      borderRadius: '8rpx'
+                    }}>
+                      {getFollowUpTypeLabel(fu.type)}
+                    </Text>
+                    <Text style={{ fontSize: '22rpx', color: '#86909C' }}>
+                      {fu.handler}
+                    </Text>
+                    <Text style={{ fontSize: '22rpx', color: '#86909C' }}>
+                      {fu.time}
                     </Text>
                   </View>
-                ))}
-              </View>
-            ) : (
-              <View className={styles.emptyVaccine}>暂无疫苗记录</View>
-            )}
-          </View>
-
-          {pet.notes && (
-            <View className={styles.infoSection}>
-              <Text className={styles.sectionTitle}>照护备注</Text>
-              <View className={styles.notesBox}>
-                <Text className={styles.notesText}>{pet.notes}</Text>
-              </View>
-            </View>
-          )}
-        </>
-      )}
-
-      {activeTab === 'timeline' && (
-        <View className={styles.timelineContainer}>
-          {petCareRecords.length === 0 ? (
-            <View className={styles.emptyTimeline}>
-              <Text className={styles.emptyTimelineText}>暂无照护记录</Text>
-            </View>
-          ) : (
-            petCareRecords.map(record => {
-              const events = getTimelineForRecord(record);
-              const hasPhotos = record.photos.length > 0;
-              return (
-                <View key={record.id} className={styles.timelineDay}>
-                  <View className={styles.dayHeader}>
-                    <View className={styles.dayDate}>
-                      <Text className={styles.dayDateText}>{record.date}</Text>
-                    </View>
-                    <View className={styles.dayStats}>
-                      <Text className={styles.dayStat}>🍚 {record.feeding.filter(f=>f.completed).length}</Text>
-                      <Text className={styles.dayStat}>💧 {record.watering.filter(w=>w.completed).length}</Text>
-                      <Text className={styles.dayStat}>🐾 {record.walking.filter(w=>w.status==='completed').length}</Text>
-                      <Text className={styles.dayStat}>💩 {record.defecation.length}</Text>
-                      <Text className={styles.dayStat}>📷 {record.photos.length}</Text>
-                    </View>
+                  <View className={styles.followUpContent}>
+                    <Text style={{ fontSize: '26rpx', color: '#4E5969', lineHeight: 1.6 }}>
+                      {fu.content}
+                    </Text>
+                    {fu.type === 'compensation' && fu.amount !== undefined && (
+                      <Text style={{
+                        fontSize: '24rpx',
+                        color: '#F53F3F',
+                        fontWeight: '600',
+                        marginTop: '8rpx',
+                        display: 'block'
+                      }}>
+                        补偿金额：¥{fu.amount}
+                      </Text>
+                    )}
                   </View>
-
-                  {hasPhotos && (
-                    <View className={styles.dayPhotoRow}>
-                      {record.photos.slice(0, 6).map((p, idx) => (
-                        <Image key={idx} src={p} mode="aspectFill" className={styles.dayPhoto} />
-                      ))}
-                    </View>
-                  )}
-
-                  {events.length === 0 ? (
-                    <View className={styles.dayEmptyEvents}>
-                      <Text className={styles.dayEmptyText}>当日暂无照护打卡</Text>
-                    </View>
-                  ) : (
-                    <View className={styles.eventsList}>
-                      {events.map(ev => (
-                        <View key={ev.id} className={styles.eventItem}>
-                          <View className={styles.eventIcon}>{ev.icon}</View>
-                          <View className={styles.eventTime}>
-                            <Text className={styles.eventTimeText}>{ev.time}</Text>
-                          </View>
-                          <View className={styles.eventContent}>
-                            <Text className={styles.eventType}>{ev.type}</Text>
-                            <Text className={styles.eventDesc}>{ev.content}</Text>
-                            {ev.photoUrl && (
-                              <Image src={ev.photoUrl} mode="aspectFill" className={styles.eventPhoto} />
-                            )}
-                          </View>
-                        </View>
-                      ))}
-                    </View>
-                  )}
                 </View>
-              );
-            })
-          )}
-        </View>
-      )}
-
-      {activeTab === 'abnormal' && (
-        <View className={styles.reportsContainer}>
-          {petReports.length === 0 ? (
-            <View className={styles.emptyReports}>
-              <Text className={styles.emptyReportsText}>暂无异常记录</Text>
+              ))}
             </View>
-          ) : (
-            petReports.map(report => (
-              <View
-                key={report.id}
-                className={styles.reportItem}
-                onClick={() => Taro.navigateTo({ url: `/pages/report-detail/index?id=${report.id}` })}
-              >
-                <View className={styles.reportTopRow}>
-                  <View className={classnames(
-                    styles.reportStatus,
-                    report.status === 'resolved' && styles.statusResolved,
-                    report.status === 'processing' && styles.statusProcessing,
-                    report.status === 'pending' && styles.statusPending
-                  )}>
-                    {report.status === 'pending' && '待处理'}
-                    {report.status === 'processing' && '处理中'}
-                    {report.status === 'resolved' && '已解决'}
-                  </View>
-                  <Text className={styles.reportTimeText}>{report.reportTime}</Text>
-                </View>
-                <View className={styles.symptomsRow}>
-                  {report.symptoms.map((s, i) => (
-                    <Text key={i} className={styles.symptomTagSmall}>{s}</Text>
-                  ))}
-                </View>
-                <Text className={styles.reportDesc}>{report.description}</Text>
-                {report.photos.length > 0 && (
-                  <View className={styles.reportPhotoRow}>
-                    {report.photos.slice(0, 3).map((p, idx) => (
-                      <Image key={idx} src={p} mode="aspectFill" className={styles.reportPhoto} />
-                    ))}
-                  </View>
-                )}
-                {report.resolution && (
-                  <View className={styles.resolutionBox}>
-                    <Text className={styles.resolutionLabel}>处理结果：</Text>
-                    <Text className={styles.resolutionText}>{report.resolution}</Text>
-                  </View>
-                )}
-              </View>
-            ))
           )}
         </View>
       )}

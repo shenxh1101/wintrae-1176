@@ -582,3 +582,215 @@
   flex: 1;
   min-width: 0;
 }
+
+.dateNav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: $color-bg-card;
+  border-radius: $radius-md;
+  padding: 16rpx 24rpx;
+  margin-bottom: 24rpx;
+}
+
+.dateNavBtn {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  background: $color-bg-hover;
+  @include flex-center;
+  border: none;
+  font-size: 28rpx;
+  color: $color-text-secondary;
+
+  &.disabled {
+    opacity: 0.3;
+  }
+}
+
+.dateNavCurrent {
+  text-align: center;
+}
+
+.dateNavDate {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+}
+
+.dateNavWeekday {
+  font-size: 22rpx;
+  color: $color-text-tertiary;
+  margin-top: 4rpx;
+}
+
+.eventAbnormal {
+  border-left: 4rpx solid $color-error;
+  padding-left: 12rpx;
+  margin-left: -8rpx;
+}
+
+.eventAbnormalResolved {
+  border-left: 4rpx solid $color-tag-green-text;
+}
+
+.abnormalBadge {
+  display: inline-block;
+  padding: 2rpx 12rpx;
+  border-radius: $radius-xs;
+  font-size: 20rpx;
+  margin-top: 6rpx;
+
+  &.pending {
+    background: #FFE8E8;
+    color: $color-error;
+  }
+
+  &.processing {
+    background: #FFF4E0;
+    color: #FF9500;
+  }
+
+  &.resolved {
+    background: $color-tag-green-bg;
+    color: $color-tag-green-text;
+  }
+}
+
+.ratingFollowUp {
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  padding: 28rpx;
+  margin-top: 32rpx;
+  box-shadow: $shadow-card;
+}
+
+.ratingFollowUpTitle {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  margin-bottom: 20rpx;
+}
+
+.ratingFollowUpRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.ratingFollowUpStars {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.ratingFollowUpScore {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-bold;
+  color: $color-primary;
+  margin-left: 8rpx;
+}
+
+.ratingFollowUpComment {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  line-height: 1.5;
+  margin-bottom: 24rpx;
+}
+
+.followUpDivider {
+  height: 1rpx;
+  background: $color-divider;
+  margin: 20rpx 0;
+}
+
+.followUpList {
+  display: block;
+}
+
+.followUpItem {
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid $color-divider;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.followUpHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8rpx;
+}
+
+.followUpType {
+  padding: 4rpx 16rpx;
+  border-radius: $radius-round;
+  font-size: 20rpx;
+  font-weight: $font-weight-medium;
+
+  &.phone {
+    background: #E8F3FF;
+    color: $color-info;
+  }
+
+  &.onsite {
+    background: #E8FFE8;
+    color: $color-tag-green-text;
+  }
+
+  &.compensation {
+    background: #FFE8E8;
+    color: $color-error;
+  }
+
+  &.other {
+    background: $color-bg-hover;
+    color: $color-text-secondary;
+  }
+}
+
+.followUpTime {
+  font-size: 22rpx;
+  color: $color-text-tertiary;
+}
+
+.followUpContent {
+  font-size: 24rpx;
+  color: $color-text-secondary;
+  line-height: 1.5;
+}
+
+.followUpHandler {
+  font-size: 22rpx;
+  color: $color-text-tertiary;
+  margin-top: 8rpx;
+}
+
+.followUpAmount {
+  font-size: 24rpx;
+  color: $color-error;
+  font-weight: $font-weight-semibold;
+  margin-top: 8rpx;
+}
+
+.dayEmptyTip {
+  padding: 32rpx 0;
+  text-align: center;
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.supplementBtn {
+  margin-top: 16rpx;
+  height: 64rpx;
+  padding: 0 32rpx;
+  border-radius: $radius-button;
+  background: $color-bg-tag-orange-bg;
+  color: $color-primary;
+  border: none;
+  font-size: $font-size-sm;
+  @include button-reset;
+}

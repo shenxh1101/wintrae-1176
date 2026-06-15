@@ -82,7 +82,7 @@ const CarePage: React.FC = () => {
 
   const toggleFeeding = (petId: string, petName: string, feeding: FeedingRecord) => {
     const newCompleted = !feeding.completed;
-    updateCareRecord(petId, r => ({
+    updateCareRecord(petId, todayStr, r => ({
       ...r,
       feeding: r.feeding.map(f => f.id === feeding.id ? { ...f, completed: newCompleted } : f)
     }));
@@ -91,14 +91,14 @@ const CarePage: React.FC = () => {
         type: 'feeding',
         time: nowTime(),
         desc: `${feeding.time} 喂食完成（${feeding.foodType} ${feeding.amount}）`
-      });
+      }, todayStr);
     }
     Taro.showToast({ title: newCompleted ? '打卡成功' : '已取消打卡', icon: 'success' });
   };
 
   const toggleWatering = (petId: string, petName: string, watering: WateringRecord) => {
     const newCompleted = !watering.completed;
-    updateCareRecord(petId, r => ({
+    updateCareRecord(petId, todayStr, r => ({
       ...r,
       watering: r.watering.map(w => w.id === watering.id ? { ...w, completed: newCompleted } : w)
     }));
@@ -107,14 +107,14 @@ const CarePage: React.FC = () => {
         type: 'watering',
         time: nowTime(),
         desc: `${watering.time} 饮水补充完成（${watering.amount}）`
-      });
+      }, todayStr);
     }
     Taro.showToast({ title: newCompleted ? '打卡成功' : '已取消打卡', icon: 'success' });
   };
 
   const toggleMedication = (petId: string, petName: string, medication: MedicationRecord) => {
     const newCompleted = !medication.completed;
-    updateCareRecord(petId, r => ({
+    updateCareRecord(petId, todayStr, r => ({
       ...r,
       medication: r.medication.map(m => m.id === medication.id ? {
         ...m,
@@ -127,14 +127,14 @@ const CarePage: React.FC = () => {
         type: 'medication',
         time: nowTime(),
         desc: `${medication.scheduledTime} 用药完成（${medication.name} ${medication.dosage}）`
-      });
+      }, todayStr);
     }
     Taro.showToast({ title: newCompleted ? '用药已记录' : '已取消', icon: 'success' });
   };
 
   const toggleGrooming = (petId: string, petName: string, grooming: GroomingRecord) => {
     const newCompleted = !grooming.completed;
-    updateCareRecord(petId, r => ({
+    updateCareRecord(petId, todayStr, r => ({
       ...r,
       grooming: grooming ? {
         ...grooming,
@@ -147,14 +147,14 @@ const CarePage: React.FC = () => {
         type: 'grooming',
         time: nowTime(),
         desc: `${grooming.scheduledTime} 洗护完成（${grooming.type}）`
-      });
+      }, todayStr);
     }
     Taro.showToast({ title: newCompleted ? '洗护已完成' : '已取消', icon: 'success' });
   };
 
   const handleWalking = (petId: string, petName: string, walking: WalkingRecord) => {
     if (walking.status === 'pending') {
-      updateCareRecord(petId, r => ({
+      updateCareRecord(petId, todayStr, r => ({
         ...r,
         walking: r.walking.map(w => w.id === walking.id ? {
           ...w,
@@ -177,7 +177,7 @@ const CarePage: React.FC = () => {
         clearInterval(intervalRefs.current[walking.id]);
         delete intervalRefs.current[walking.id];
       }
-      updateCareRecord(petId, r => ({
+      updateCareRecord(petId, todayStr, r => ({
         ...r,
         walking: r.walking.map(w => w.id === walking.id ? {
           ...w,
@@ -190,7 +190,7 @@ const CarePage: React.FC = () => {
         type: 'walking',
         time: nowTime(),
         desc: `遛放完成，时长 ${durationMinutes} 分钟`
-      });
+      }, todayStr);
       Taro.showToast({ title: '遛放已结束', icon: 'success' });
     }
   };
@@ -202,7 +202,7 @@ const CarePage: React.FC = () => {
         const types: Array<'normal' | 'soft' | 'diarrhea' | 'constipation'> = ['normal', 'soft', 'diarrhea', 'constipation'];
         const typeLabels = ['正常', '偏软', '腹泻', '便秘'];
         const selectedType = types[res.tapIndex];
-        updateCareRecord(petId, r => ({
+        updateCareRecord(petId, todayStr, r => ({
           ...r,
           defecation: [...r.defecation, {
             id: `d_${Date.now()}`,
@@ -214,7 +214,7 @@ const CarePage: React.FC = () => {
           type: 'defecation',
           time: nowTime(),
           desc: `排便记录：${typeLabels[res.tapIndex]}`
-        });
+        }, todayStr);
         Taro.showToast({ title: `已记录：${typeLabels[res.tapIndex]}`, icon: 'success' });
       }
     });
@@ -224,13 +224,13 @@ const CarePage: React.FC = () => {
     const seeds = ['cute', 'pet', 'dog', 'cat', 'puppy', 'kitten', 'animal', 'furry'];
     const seed = seeds[Math.floor(Math.random() * seeds.length)] + Date.now();
     const photoUrl = `https://picsum.photos/seed/${seed}/400/400`;
-    addCarePhoto(petId, photoUrl);
+    addCarePhoto(petId, todayStr, photoUrl);
     addCareMessage(petId, petName, {
       type: 'photo',
       time: nowTime(),
       desc: '新增一张今日照片',
       photoUrl
-    });
+    }, todayStr);
     Taro.showToast({ title: '照片已添加', icon: 'success' });
   };
 

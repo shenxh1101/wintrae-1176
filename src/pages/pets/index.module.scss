@@ -517,3 +517,45 @@
   color: $color-text-secondary;
   line-height: 1.4;
 }
+
+.ratingBoxHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
+
+.ratingStatusTag {
+  padding: 4rpx 16rpx;
+  border-radius: $radius-round;
+  font-size: 20rpx;
+  font-weight: $font-weight-medium;
+}
+
+.ratingStatusPending {
+  background: #FFF4E0;
+  color: #FF9500;
+}
+
+.ratingStatusRated {
+  background: $color-tag-green-bg;
+  color: $color-tag-green-text;
+}
+
+.ratingStatusVisited {
+  background: #E8F3FF;
+  color: $color-info;
+}
+
+.followUpHint {
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: $color-primary;
+  font-weight: $font-weight-medium;
+}
+
+.ratingPendingHint {
+  font-size: 24rpx;
+  color: $color-text-tertiary;
+  padding: 8rpx 0;
+}

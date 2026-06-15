@@ -3,7 +3,7 @@ import { View, Text, Image, ScrollView, Button, Textarea } from '@tarojs/compone
 import Taro, { useDidShow } from '@tarojs/taro';
 import styles from './index.module.scss';
 import { useAppStore } from '@/store';
-import { Message, CareDetailItem } from '@/types';
+import { Message, CareDetailItem, StayGroup, FollowUpRecord } from '@/types';
 import classnames from 'classnames';
 
 const CARE_ICONS: Record<CareDetailItem['type'], string> = {
@@ -28,10 +28,12 @@ const CARE_LABELS: Record<CareDetailItem['type'], string> = {
 
 const TYPE_ICONS: Record<Message['type'], string> = {
   'care-summary': '📋',
-  'care-update': '📋',
+  'care-update': '📌',
   'abnormal-alert': '⚠️',
+  'abnormal-resolved': '✅',
   'owner-receipt': '📮',
-  'rating': '⭐'
+  'rating': '⭐',
+  'follow-up': '📌'
 };
 
 const formatTime = (iso: string) => {
@@ -44,46 +46,47 @@ const formatTime = (iso: string) => {
   }
 };
 
+const formatDate = (iso: string) => {
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return `${d.getMonth() + 1}月${d.getDate()}日`;
+  } catch {
+    return iso;
+  }
+};
+
+const formatDateRange = (checkIn: string, checkOut?: string) => {
+  if (!checkOut) return `${formatDate(checkIn)} → 进行中`;
+  return `${formatDate(checkIn)} → ${formatDate(checkOut)}`;
+};
+
 const MessagesPage: React.FC = () => {
-  const messages = useAppStore(s => s.messages);
-  const pets = useAppStore(s => s.pets);
-  const updateMessage = useAppStore(s => s.updateMessage);
+  const getStayGroups = useAppStore(s => s.getStayGroups);
+  const toggleStayExpand = useAppStore(s => s.toggleStayExpand);
+  const markStayRead = useAppStore(s => s.markStayRead);
   const markMessageRead = useAppStore(s => s.markMessageRead);
   const toggleSummaryExpand = useAppStore(s => s.toggleSummaryExpand);
+  const updateMessage = useAppStore(s => s.updateMessage);
+  const addFollowUp = useAppStore(s => s.addFollowUp);
   const initFromStorage = useAppStore(s => s.initFromStorage);
+  const staysExpanded = useAppStore(s => (s as any).staysExpanded || {});
 
   const [refreshing, setRefreshing] = useState(false);
-  const [ratingInputs, setRatingInputs] = useState<Record<string, { rating: number; comment: string }>({});
+  const [ratingInputs, setRatingInputs] = useState<Record<string, { rating: number; comment: string }>>({});
 
   useDidShow(() => {
     initFromStorage();
   });
 
-  const unreadCount = messages.filter(m => !m.read).length;
+  const stayGroups = useMemo(() => getStayGroups(), [getStayGroups]);
 
-  const sortedMessages = useMemo(() => {
-    return [...messages].sort((a, b) => {
-      const timeA = new Date(a.time).getTime();
-      const timeB = new Date(b.time).getTime();
-      return timeB - timeA;
-    });
-  }, [messages]);
+  const totalUnread = useMemo(() => {
+    return stayGroups.reduce((sum, group) => sum + group.unreadCount, 0);
+  }, [stayGroups]);
 
-  const getPetAvatar = (petId?: string) => {
-    if (!petId) return '';
-    const pet = pets.find(p => p.id === petId);
-    return pet?.avatar || '';
-  };
-
-  const buildSummaryText = (details?: CareDetailItem[]) => {
-    if (!details || details.length === 0) return '暂无照护记录';
-    const counts: Record<string, number> = {};
-    details.forEach(d => {
-      counts[d.type] = (counts[d.type] || 0) + 1;
-    });
-    return Object.entries(counts)
-      .map(([type, count]) => `${CARE_LABELS[type as CareDetailItem['type']]}${count}${type === 'defecation' ? '条' : '次'}`)
-      .join('、');
+  const isGroupExpanded = (stayKey: string) => {
+    return staysExpanded[stayKey] || false;
   };
 
   const onRefresh = () => {
@@ -93,6 +96,11 @@ const MessagesPage: React.FC = () => {
       setRefreshing(false);
       Taro.showToast({ title: '刷新成功', icon: 'success' });
     }, 800);
+  };
+
+  const handleGroupClick = (stayKey: string) => {
+    toggleStayExpand(stayKey);
+    markStayRead(stayKey);
   };
 
   const handleMessageClick = (message: Message) => {
@@ -197,8 +205,7 @@ const MessagesPage: React.FC = () => {
   };
 
   const renderCareSummary = (message: Message) => {
-    const avatar = getPetAvatar(message.petId);
-    const summaryText = message.content || buildSummaryText(message.careDetails);
+    const summaryText = message.content || '';
     return (
       <View
         key={message.id}
@@ -208,20 +215,12 @@ const MessagesPage: React.FC = () => {
         {!message.read && <View className={styles.unreadDot} />}
         <View className={styles.summaryHeader}>
           <View className={styles.summaryLeft}>
-            {avatar ? (
-              <Image
-                className={styles.petAvatar}
-                src={avatar}
-                mode="aspectFill"
-              />
-            ) : (
-              <View className={classnames(styles.typeIcon, styles.typeCare)}>
+            <View className={classnames(styles.typeIcon, styles.typeCare)}>
               <Text>{TYPE_ICONS[message.type]}</Text>
             </View>
-            )}
             <View className={styles.summaryInfo}>
-              <Text className={styles.petName}>{message.petName || '宠物'}</Text>
-              <Text className={styles.summaryDate}>{message.date || formatTime(message.time)}</Text>
+              <Text className={styles.petName}>{message.title || `${formatDate(message.time)} 照护动态`}</Text>
+              <Text className={styles.summaryDate}>{formatTime(message.time)}</Text>
             </View>
           </View>
           <Button
@@ -249,6 +248,28 @@ const MessagesPage: React.FC = () => {
         {!message.read && <View className={styles.unreadDot} />}
         <View className={styles.messageHeader}>
           <View className={classnames(styles.typeIcon, styles.typeAlert)}>
+            <Text>{TYPE_ICONS[message.type]}</Text>
+          </View>
+          <View className={styles.messageInfo}>
+            <Text className={styles.messageTitle}>{message.title}</Text>
+            <Text className={styles.messageTime}>{formatTime(message.time)}</Text>
+          </View>
+        </View>
+        <Text className={styles.messageContent}>{message.content}</Text>
+      </View>
+    );
+  };
+
+  const renderAbnormalResolved = (message: Message) => {
+    return (
+      <View
+        key={message.id}
+        className={classnames(styles.messageCard, styles.receiptCard)}
+        onClick={() => handleMessageClick(message)}
+      >
+        {!message.read && <View className={styles.unreadDot} />}
+        <View className={styles.messageHeader}>
+          <View className={classnames(styles.typeIcon, styles.typeReceipt)}>
             <Text>{TYPE_ICONS[message.type]}</Text>
           </View>
           <View className={styles.messageInfo}>
@@ -297,6 +318,27 @@ const MessagesPage: React.FC = () => {
     );
   };
 
+  const renderFollowUps = (followUps?: FollowUpRecord[]) => {
+    if (!followUps || followUps.length === 0) return null;
+    return (
+      <View className={styles.careDetails}>
+        {followUps.map((item) => (
+          <View key={item.id} className={styles.careDetailItem}>
+            <Text className={styles.careDetailTime}>{formatDate(item.time)}</Text>
+            <Text className={styles.careDetailIcon}>📌</Text>
+            <View className={styles.careDetailDesc}>
+              <Text style={{ fontWeight: 500 }}>{item.handler} · {item.type === 'phone' ? '电话回访' : item.type === 'onsite' ? '上门回访' : item.type === 'compensation' ? '赔偿处理' : '其他'}</Text>
+              <Text style={{ display: 'block', marginTop: 4 }}>{item.content}</Text>
+              {item.amount !== undefined && (
+                <Text style={{ display: 'block', marginTop: 4, color: '#FFB800' }}>赔偿金额：¥{item.amount}</Text>
+              )}
+            </View>
+          </View>
+        ))}
+      </View>
+    );
+  };
+
   const renderRating = (message: Message) => {
     const hasRated = message.rating && message.rating > 0;
     const input = getRatingInput(message.id);
@@ -330,6 +372,7 @@ const MessagesPage: React.FC = () => {
             <Text className={classnames(styles.statusTag, styles.statusConfirmed)}>
               已评价
             </Text>
+            {renderFollowUps(message.followUps)}
           </View>
         ) : (
           <View className={styles.ratingForm} onClick={(e) => e.stopPropagation()}>
@@ -362,20 +405,145 @@ const MessagesPage: React.FC = () => {
     );
   };
 
+  const renderCareUpdate = (message: Message) => {
+    return (
+      <View
+        key={message.id}
+        className={classnames(styles.messageCard, styles.careSummaryCard)}
+        onClick={() => handleMessageClick(message)}
+      >
+        {!message.read && <View className={styles.unreadDot} />}
+        <View className={styles.messageHeader}>
+          <View className={classnames(styles.typeIcon, styles.typeCare)}>
+            <Text>{TYPE_ICONS[message.type]}</Text>
+          </View>
+          <View className={styles.messageInfo}>
+            <Text className={styles.messageTitle}>{message.title}</Text>
+            <Text className={styles.messageTime}>{formatTime(message.time)}</Text>
+          </View>
+        </View>
+        <Text className={styles.messageContent}>{message.content}</Text>
+      </View>
+    );
+  };
+
+  const renderFollowUp = (message: Message) => {
+    return (
+      <View
+        key={message.id}
+        className={classnames(styles.messageCard, styles.careSummaryCard)}
+        onClick={() => handleMessageClick(message)}
+      >
+        {!message.read && <View className={styles.unreadDot} />}
+        <View className={styles.messageHeader}>
+          <View className={classnames(styles.typeIcon, styles.typeCare)}>
+            <Text>{TYPE_ICONS[message.type]}</Text>
+          </View>
+          <View className={styles.messageInfo}>
+            <Text className={styles.messageTitle}>{message.title}</Text>
+            <Text className={styles.messageTime}>{formatTime(message.time)}</Text>
+          </View>
+        </View>
+        <Text className={styles.messageContent}>{message.content}</Text>
+      </View>
+    );
+  };
+
   const renderMessage = (message: Message) => {
     switch (message.type) {
       case 'care-summary':
-      case 'care-update':
         return renderCareSummary(message);
+      case 'care-update':
+        return renderCareUpdate(message);
       case 'abnormal-alert':
         return renderAbnormalAlert(message);
+      case 'abnormal-resolved':
+        return renderAbnormalResolved(message);
       case 'owner-receipt':
         return renderOwnerReceipt(message);
       case 'rating':
         return renderRating(message);
+      case 'follow-up':
+        return renderFollowUp(message);
       default:
         return null;
     }
+  };
+
+  const getLatestMessage = (group: StayGroup) => {
+    if (group.messages.length === 0) return null;
+    return group.messages[0];
+  };
+
+  const renderStayGroup = (group: StayGroup) => {
+    const expanded = isGroupExpanded(group.stayKey);
+    const latestMsg = getLatestMessage(group);
+
+    return (
+      <View key={group.stayKey} className={styles.stayGroupCard}>
+        <View className={styles.stayGroupHeader} onClick={() => handleGroupClick(group.stayKey)}>
+          <View className={styles.stayPetInfo}>
+            {group.petAvatar ? (
+              <Image
+                className={styles.petAvatar}
+                src={group.petAvatar}
+                mode="aspectFill"
+              />
+            ) : (
+              <View className={classnames(styles.typeIcon, styles.typeCare)}>
+                <Text>🐾</Text>
+              </View>
+            )}
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text className={styles.petName}>{group.petName}</Text>
+              <View className={styles.stayDates}>
+                <Text>{formatDateRange(group.checkInDate, group.checkOutDate)}</Text>
+              </View>
+            </View>
+          </View>
+          <View style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Text
+              className={classnames(
+                styles.stayStatus,
+                group.status === 'checked-in' ? styles.statusUnconfirmed : styles.statusConfirmed
+              )}
+            >
+              {group.status === 'checked-in' ? '在住' : '已离店'}
+            </Text>
+            {group.unreadCount > 0 && (
+              <Text className={styles.unreadBadge}>{group.unreadCount}</Text>
+            )}
+          </View>
+        </View>
+
+        <View className={styles.staySummary} onClick={() => handleGroupClick(group.stayKey)}>
+          <Text className={styles.summaryText}>{group.summaryText}</Text>
+        </View>
+
+        {latestMsg && (
+          <View className={styles.stayPreview} onClick={() => handleGroupClick(group.stayKey)}>
+            <Text className={styles.careDetailIcon}>{TYPE_ICONS[latestMsg.type]}</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text className={styles.messageTitle} numberOfLines={1}>{latestMsg.title}</Text>
+            </View>
+            <Text className={styles.messageTime}>{formatTime(group.latestTime)}</Text>
+          </View>
+        )}
+
+        <View className={styles.stayExpandBtn} onClick={() => handleGroupClick(group.stayKey)}>
+          <Text className={styles.expandIcon}>{expanded ? '▲' : '▼'}</Text>
+          <Text style={{ fontSize: 22, color: '#999', marginLeft: 8 }}>
+            {expanded ? '收起' : `展开全部${group.messages.length}条`}
+          </Text>
+        </View>
+
+        {expanded && group.messages.length > 0 && (
+          <View className={styles.stayMessageList}>
+            {group.messages.map(msg => renderMessage(msg))}
+          </View>
+        )}
+      </View>
+    );
   };
 
   return (
@@ -388,16 +556,16 @@ const MessagesPage: React.FC = () => {
     >
       <View className={styles.header}>
         <Text className={styles.title}>消息中心</Text>
-        {unreadCount > 0 && (
-          <Text className={styles.unreadBadge}>{unreadCount}</Text>
+        {totalUnread > 0 && (
+          <Text className={styles.unreadBadge}>{totalUnread}</Text>
         )}
       </View>
 
-      {sortedMessages.length === 0 ? (
+      {stayGroups.length === 0 ? (
         <View className={styles.emptyTip}>暂无消息</View>
       ) : (
         <View className={styles.messageList}>
-          {sortedMessages.map(message => renderMessage(message))}
+          {stayGroups.map(group => renderStayGroup(group))}
         </View>
       )}
     </ScrollView>

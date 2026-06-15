@@ -262,7 +262,9 @@ const PetsPage: React.FC = () => {
         ) : (
           filteredPets.map(pet => {
             const ratingMsg = getPetRating(pet);
-            const hasRating = ratingMsg && ratingMsg.rating && ratingMsg.rating > 0;
+            const ratingStatus = ratingMsg?.ratingStatus || (ratingMsg?.rating && ratingMsg.rating > 0 ? 'rated' : 'pending');
+            const hasRatingMsg = !!ratingMsg;
+            const hasFollowUps = ratingMsg?.followUps && ratingMsg.followUps.length > 0;
             return (
               <View
                 key={pet.id}
@@ -333,18 +335,35 @@ const PetsPage: React.FC = () => {
                   </View>
                 )}
 
-                {hasRating && (
+                {hasRatingMsg && (
                   <View className={styles.ratingBox}>
-                    <Text className={styles.ratingBoxLabel}>⭐ 本次评价</Text>
-                    <View className={styles.ratingBoxContent}>
-                      <View className={styles.ratingBoxStars}>
-                        {renderRatingStars(ratingMsg!.rating!)}
-                        <Text className={styles.ratingBoxScore}>{ratingMsg!.rating}.0</Text>
-                      </View>
-                      {ratingMsg!.ratingComment && (
-                        <Text className={styles.ratingBoxComment}>"{ratingMsg!.ratingComment}"</Text>
-                      )}
+                    <View className={styles.ratingBoxHeader}>
+                      <Text className={styles.ratingBoxLabel}>⭐ 服务评价</Text>
+                      <Text className={classnames(
+                        styles.ratingStatusTag,
+                        ratingStatus === 'pending' && styles.ratingStatusPending,
+                        ratingStatus === 'rated' && styles.ratingStatusRated,
+                        ratingStatus === 'visited' && styles.ratingStatusVisited
+                      )}>
+                        {ratingStatus === 'pending' ? '待评价' : ratingStatus === 'rated' ? '已评价' : '已回访'}
+                      </Text>
                     </View>
+                    {(ratingStatus === 'rated' || ratingStatus === 'visited') && ratingMsg?.rating ? (
+                      <View className={styles.ratingBoxContent}>
+                        <View className={styles.ratingBoxStars}>
+                          {renderRatingStars(ratingMsg.rating)}
+                          <Text className={styles.ratingBoxScore}>{ratingMsg.rating}.0</Text>
+                        </View>
+                        {ratingMsg.ratingComment && (
+                          <Text className={styles.ratingBoxComment}>"{ratingMsg.ratingComment}"</Text>
+                        )}
+                        {hasFollowUps && (
+                          <Text className={styles.followUpHint}>📞 已回访 {ratingMsg!.followUps!.length} 次</Text>
+                        )}
+                      </View>
+                    ) : (
+                      <Text className={styles.ratingPendingHint}>主人尚未评价，离店后可跟进回访</Text>
+                    )}
                   </View>
                 )}
 

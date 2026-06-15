@@ -101,13 +101,24 @@ export interface AbnormalReport {
   resolvedTime?: string;
 }
 
-export type MessageType = 'care-update' | 'abnormal-alert' | 'owner-receipt' | 'rating' | 'care-summary';
+export type MessageType = 'care-update' | 'abnormal-alert' | 'owner-receipt' | 'rating' | 'care-summary' | 'follow-up' | 'abnormal-resolved';
+
+export type RatingStatus = 'pending' | 'rated' | 'visited';
 
 export interface CareDetailItem {
   type: 'feeding' | 'watering' | 'walking' | 'defecation' | 'grooming' | 'medication' | 'photo';
   time: string;
   desc: string;
   photoUrl?: string;
+}
+
+export interface FollowUpRecord {
+  id: string;
+  type: 'phone' | 'onsite' | 'compensation' | 'other';
+  handler: string;
+  content: string;
+  time: string;
+  amount?: number;
 }
 
 export interface Message {
@@ -124,10 +135,30 @@ export interface Message {
   receiptConfirmed?: boolean;
   rating?: number;
   ratingComment?: string;
+  ratingStatus?: RatingStatus;
   reportId?: string;
   careDetails?: CareDetailItem[];
   isSummary?: boolean;
   summaryCount?: number;
+  expanded?: boolean;
+  stayKey?: string;
+  followUps?: FollowUpRecord[];
+  abnormalCount?: number;
+  totalCareDays?: number;
+}
+
+export interface StayGroup {
+  stayKey: string;
+  petId: string;
+  petName: string;
+  petAvatar?: string;
+  checkInDate: string;
+  checkOutDate?: string;
+  status: 'checked-in' | 'checked-out';
+  messages: Message[];
+  unreadCount: number;
+  latestTime: string;
+  summaryText: string;
   expanded?: boolean;
 }
 

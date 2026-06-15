@@ -975,3 +975,152 @@
   width: 100%;
   margin-top: 16rpx;
 }
+
+.stayGroupCard {
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  padding: 28rpx;
+  margin-bottom: 24rpx;
+  box-shadow: $shadow-card;
+}
+
+.stayGroupHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.stayPetInfo {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  flex: 1;
+  min-width: 0;
+}
+
+.stayAvatar {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: $radius-round;
+}
+
+.stayNameBox {
+  flex: 1;
+  min-width: 0;
+}
+
+.stayPetName {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  @include text-ellipsis;
+}
+
+.stayDates {
+  font-size: 22rpx;
+  color: $color-text-tertiary;
+  margin-top: 4rpx;
+}
+
+.stayStatus {
+  padding: 6rpx 20rpx;
+  border-radius: $radius-round;
+  font-size: 22rpx;
+  font-weight: $font-weight-medium;
+  flex-shrink: 0;
+
+  &.checked-in {
+    background: $color-tag-green-bg;
+    color: $color-tag-green-text;
+  }
+
+  &.checked-out {
+    background: $color-bg-hover;
+    color: $color-text-secondary;
+  }
+}
+
+.staySummary {
+  padding: 16rpx 20rpx;
+  background: $color-bg-page;
+  border-radius: $radius-md;
+  margin-bottom: 16rpx;
+}
+
+.staySummaryText {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  line-height: 1.5;
+}
+
+.stayPreview {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
+}
+
+.stayPreviewIcon {
+  font-size: 28rpx;
+}
+
+.stayPreviewTitle {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  flex: 1;
+  @include text-ellipsis;
+}
+
+.stayPreviewTime {
+  font-size: 22rpx;
+  color: $color-text-tertiary;
+}
+
+.stayExpandBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  height: 64rpx;
+  background: $color-bg-hover;
+  border-radius: $radius-md;
+  border: none;
+  @include button-reset;
+}
+
+.stayExpandText {
+  font-size: 24rpx;
+  color: $color-text-secondary;
+}
+
+.stayExpandIcon {
+  font-size: 20rpx;
+  color: $color-text-tertiary;
+}
+
+.stayMessageList {
+  margin-top: 20rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid $color-divider;
+}
+
+.resolvedCard {
+  border-left: 8rpx solid $color-tag-green-text;
+}
+
+.followUpCard {
+  border-left: 8rpx solid $color-info;
+}
+
+.ratingFollowUpSection {
+  margin-top: 20rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid $color-divider;
+}
+
+.ratingFollowUpLabel {
+  font-size: 22rpx;
+  color: $color-text-tertiary;
+  margin-bottom: 12rpx;
+}
